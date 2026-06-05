@@ -1,6 +1,8 @@
 """FastAPI backend entry for AI 小说转剧本工具."""
 
-from fastapi import FastAPI
+from pathlib import Path
+
+from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 
 try:
@@ -14,6 +16,9 @@ app = FastAPI(title="AI 小说转剧本工具", version="0.1.0")
 MIN_REQUIRED_CHAPTERS = 3
 SUMMARY_LIMIT = 80
 CONTENT_PREVIEW_LIMIT = 120
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+EXAMPLE_NOVEL_PATH = PROJECT_ROOT / "examples" / "sample_novel.txt"
+EXAMPLE_NOVEL_SOURCE = "examples/sample_novel.txt"
 
 
 class ChapterParseRequest(BaseModel):
@@ -28,6 +33,24 @@ def health_check() -> dict[str, str]:
         "app": "AI 小说转剧本工具",
         "version": "0.1.0",
         "architecture": "frontend-backend-separated",
+    }
+
+
+@app.get("/api/examples/novel")
+def get_example_novel() -> dict[str, str]:
+    """Return the built-in example novel text."""
+    try:
+        text = EXAMPLE_NOVEL_PATH.read_text(encoding="utf-8")
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail="示例小说文件不存在。") from exc
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail="示例小说文件读取失败。") from exc
+
+    return {
+        "title": "雨夜来信",
+        "text": text,
+        "source": EXAMPLE_NOVEL_SOURCE,
+        "message": "示例小说加载成功。",
     }
 
 

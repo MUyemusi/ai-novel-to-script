@@ -7,37 +7,81 @@
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <header class="site-header">
-    <div class="header-content">
+  <header class="topbar">
+    <div class="brand">
       <p class="eyebrow">比赛 Demo 项目</p>
-      <h1>AI 小说转剧本工具</h1>
-      <p class="intro">
-        面向小说作者的改编辅助工具，后续将支持将 3 个章节以上的小说文本转换为结构化剧本 YAML 初稿。
-      </p>
+      <h1>小说改编剧本工具</h1>
+      <p>将章节整理为可编辑的剧本初稿</p>
     </div>
+    <nav class="top-actions" aria-label="主要操作">
+      <button type="button" class="btn primary" id="topLoadExampleBtn">加载示例</button>
+      <button type="button" class="btn" id="parseChaptersBtn">识别章节</button>
+      <button type="button" class="btn disabled-action" id="generateYamlBtn" aria-disabled="true">生成 YAML</button>
+      <button type="button" class="btn disabled-action" id="cleanScriptBtn" aria-disabled="true">清洗为剧本</button>
+      <button type="button" class="btn disabled-action" id="previewScriptBtn" aria-disabled="true">预览最终剧本</button>
+    </nav>
   </header>
 
-  <main class="page-shell">
-    <section class="panel">
-      <h2>小说输入区</h2>
-      <textarea class="novel-input" placeholder="在后续 PR 中，这里将用于粘贴或上传小说文本。"></textarea>
+  <main class="workspace">
+    <section class="panel input-panel" aria-labelledby="inputTitle">
+      <div class="panel-heading">
+        <div>
+          <p class="section-kicker">Source</p>
+          <h2 id="inputTitle">原文输入</h2>
+        </div>
+        <span class="word-count" id="wordCount">0 字</span>
+      </div>
+
+      <textarea id="novelInput" class="novel-input" placeholder="在这里粘贴小说文本"></textarea>
+
+      <div class="input-actions">
+        <label class="file-button" for="txtUpload">上传 txt 文件</label>
+        <input type="file" id="txtUpload" accept=".txt,text/plain">
+        <button type="button" class="btn secondary" id="panelLoadExampleBtn">加载示例</button>
+        <button type="button" class="btn ghost" id="clearTextBtn">清空</button>
+      </div>
+
+      <div class="status-line info" id="inputStatus">等待输入小说文本</div>
     </section>
 
-    <section class="panel">
-      <h2>章节识别区</h2>
-      <div class="placeholder-box">章节切分结果将在后续接口接入后展示。</div>
+    <section class="panel control-panel" aria-labelledby="controlTitle">
+      <div class="panel-heading">
+        <div>
+          <p class="section-kicker">Adaptation</p>
+          <h2 id="controlTitle">改编控制台</h2>
+        </div>
+      </div>
+      <p class="muted">剧本风格、章节结构和人物统计将在后续 PR 中开放。</p>
+      <label class="field-label" for="stylePreset">剧本风格</label>
+      <select id="stylePreset" disabled>
+        <option>悬疑短剧</option>
+      </select>
+      <label class="field-label" for="paceSlider">节奏强度</label>
+      <input type="range" id="paceSlider" min="1" max="5" value="3" disabled>
+      <div class="placeholder-box">章节结构预览将在后续 PR 中展示。</div>
     </section>
 
-    <section class="panel">
-      <h2>剧本 YAML 生成区</h2>
-      <div class="placeholder-box">剧本 YAML 生成功能将在后续 PR 中实现。</div>
-    </section>
-
-    <section class="panel">
-      <h2>校验、预览与导出区</h2>
-      <div class="placeholder-box">校验、预览与导出能力将在后续阶段补充。</div>
+    <section class="panel yaml-panel" aria-labelledby="yamlTitle">
+      <div class="panel-heading">
+        <div>
+          <p class="section-kicker">Output</p>
+          <h2 id="yamlTitle">YAML 与校验</h2>
+        </div>
+        <span class="validation-badge">未生成</span>
+      </div>
+      <p class="muted">生成 YAML、Schema 校验和下载功能将在后续 PR 中开放。</p>
+      <textarea class="yaml-output" readonly disabled placeholder="YAML 输出占位"></textarea>
     </section>
   </main>
+
+  <div class="modal-backdrop" id="previewModal" hidden>
+    <div class="script-paper" role="dialog" aria-modal="true" aria-labelledby="previewTitle">
+      <button type="button" class="modal-close" id="closePreviewBtn" aria-label="关闭预览">×</button>
+      <p class="section-kicker">Preview</p>
+      <h2 id="previewTitle">最终剧本预览</h2>
+      <p class="muted">该功能将在后续 PR 中实现。</p>
+    </div>
+  </div>
 
   <script src="app.js"></script>
 </body>

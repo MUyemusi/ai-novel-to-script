@@ -4,32 +4,40 @@
 
 AI 小说转剧本工具是一个比赛 Demo 项目，面向小说作者，目标是将 3 个章节以上的小说文本逐步转换为结构化 YAML 剧本初稿。
 
-当前项目仍保持 `src + tests + Streamlit Demo` 的基础结构，尚未进行前后端分离改造。
+当前项目已调整为前后端分离结构：前端使用 HTML、CSS 和原生 JavaScript，后端使用 FastAPI。当前 PR 仅完成结构调整和健康检查接口，章节解析 API、剧本 YAML 生成、Schema 校验、Word/PDF 导出和 AI API 接入仍属于后续计划。
+
+## 当前技术栈
+
+- 前端：HTML + CSS + JavaScript
+- 后端：FastAPI
+- YAML：PyYAML
+- Schema 校验：jsonschema
+- 测试：pytest
 
 ## 当前已完成功能
 
 - 小说章节自动切分功能
-- 基础 pytest 测试运行配置
-- Streamlit Demo 入口页面
-
-YAML 生成、Schema 校验、Word/PDF 导出、AI API 接入等功能属于后续计划，当前版本尚未实现。
-
-## 技术栈
-
-- Python
-- Streamlit
-- pytest
+- pytest 测试运行配置
+- 前后端分离目录结构
+- FastAPI 健康检查接口 `/health`
+- 前端静态页面骨架
 
 ## 项目结构
 
-- `app.py`：Streamlit Demo 入口
-- `requirements.txt`：项目依赖
-- `pytest.ini`：pytest 测试运行配置
-- `src/`：核心 Python 模块
+- `frontend/`：前端静态页面
+- `frontend/index.html`：页面入口
+- `frontend/styles.css`：页面样式
+- `frontend/app.js`：前端基础初始化脚本
+- `backend/`：FastAPI 后端服务
+- `backend/main.py`：后端应用入口
+- `backend/requirements.txt`：后端依赖
+- `backend/services/`：后端核心服务模块
 - `tests/`：单元测试
 - `docs/`：设计文档与开发过程记录
 - `examples/`：示例小说和示例输出
 - `assets/`：静态资源目录
+- `pytest.ini`：pytest 测试运行配置
+- `requirements.txt`：项目总体依赖入口
 
 ## 环境准备
 
@@ -73,8 +81,49 @@ source ai-novel-to-script-venv/bin/activate
 
 ## 安装依赖
 
+后端开发推荐安装 `backend/requirements.txt`：
+
+```bash
+cd backend
+pip install -r requirements.txt
+```
+
+也可以在项目根目录安装总体依赖入口：
+
 ```bash
 pip install -r requirements.txt
+```
+
+## 启动后端
+
+```bash
+cd backend
+uvicorn main:app --reload
+```
+
+后端访问地址：
+
+```text
+http://127.0.0.1:8000
+```
+
+健康检查接口：
+
+```text
+GET http://127.0.0.1:8000/health
+```
+
+## 启动前端
+
+```bash
+cd frontend
+python -m http.server 5500
+```
+
+前端访问地址：
+
+```text
+http://127.0.0.1:5500
 ```
 
 ## 运行测试
@@ -85,12 +134,6 @@ pip install -r requirements.txt
 python -m pytest
 ```
 
-## 启动 Streamlit Demo
-
-```bash
-streamlit run app.py
-```
-
 ## 文档位置
 
 - YAML Schema 设计文档：`docs/yaml_schema_design.md`
@@ -99,11 +142,12 @@ streamlit run app.py
 
 ## PR 开发说明
 
-本项目采用 PR 分阶段开发，每个 PR 只完成一个独立功能，确保持续迭代和可回溯的开发记录。
+本项目采用分支 + PR 方式持续开发，每个 PR 只完成一件事，确保主分支保持可运行。
 
 - PR 1：小说章节自动切分功能
 - PR 2：虚拟环境搭建、依赖管理与 pytest 测试运行配置
-- 后续 PR：根据比赛 Demo 需求继续补充转换、校验与页面整合能力
+- PR 3：前后端分离架构调整
+- 后续 PR：章节解析 API、剧本 YAML 生成 API、Schema 校验 API 等功能
 
 ## 时间规范说明
 

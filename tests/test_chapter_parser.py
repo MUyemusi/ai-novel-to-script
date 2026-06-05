@@ -1,4 +1,4 @@
-from src.chapter_parser import split_chapters, validate_min_chapters
+from backend.services.chapter_parser import split_chapters, validate_min_chapters
 
 
 def test_split_arabic_number_chapters():

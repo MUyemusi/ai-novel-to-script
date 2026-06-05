@@ -21,6 +21,7 @@ AI 小说转剧本工具是一个比赛 Demo 项目，面向小说作者，目�
 - 前后端分离目录结构
 - FastAPI 健康检查接口 `/health`
 - 章节解析接口 `POST /api/chapters/parse`
+- 示例小说接口 `GET /api/examples/novel`
 - 前端静态页面骨架
 
 ## 项目结构
@@ -130,6 +131,14 @@ POST http://127.0.0.1:8000/api/chapters/parse
 
 返回内容包括章节数量、是否满足至少 3 章要求、章节标题、摘要预览、正文预览和正文长度。接口不会返回完整章节正文。
 
+示例小说接口：
+
+```text
+GET http://127.0.0.1:8000/api/examples/novel
+```
+
+该接口读取项目内置示例小说《雨夜来信》，为后续前端“一键加载示例小说”功能提供文本数据。返回字段包括 `title`、`text`、`source` 和 `message`。
+
 ## 启动前端
 
 ```bash
@@ -165,6 +174,7 @@ python -m pytest
 - PR 2：虚拟环境搭建、依赖管理与 pytest 测试运行配置
 - PR 3：前后端分离架构调整
 - PR 4：章节解析 API
+- PR 5：示例小说 API
 - 后续 PR：剧本 YAML 生成 API、Schema 校验 API 等功能
 
 ## 时间规范说明

@@ -30,3 +30,15 @@
 - 当前阶段仍保留 `src + tests + Streamlit Demo` 结构，前后端分离将在后续 PR 中完成。
 
 时间说明：本记录使用中国北京时间 UTC+08:00。
+
+## PR 3：前后端分离架构调整
+
+- 将项目从 Streamlit 单体 Demo 调整为前后端分离结构。
+- 新增 `frontend` 目录，用于承载 HTML、CSS 和 JavaScript 页面。
+- 新增 `backend` 目录，用于承载 FastAPI 后端服务。
+- 将原 `src` 模块迁移至 `backend/services`。
+- 新增 FastAPI 健康检查接口 `/health`。
+- 更新 README 中的前后端启动方式。
+- 保持章节解析功能和测试用例可运行。
+
+时间说明：本记录使用中国北京时间 UTC+08:00。

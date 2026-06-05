@@ -47,18 +47,24 @@
     <section class="panel control-panel" aria-labelledby="controlTitle">
       <div class="panel-heading">
         <div>
-          <p class="section-kicker">Adaptation</p>
-          <h2 id="controlTitle">改编控制台</h2>
+          <p class="section-kicker">Chapters</p>
+          <h2 id="controlTitle">章节识别结果</h2>
         </div>
       </div>
-      <p class="muted">剧本风格、章节结构和人物统计将在后续 PR 中开放。</p>
-      <label class="field-label" for="stylePreset">剧本风格</label>
-      <select id="stylePreset" disabled>
-        <option>悬疑短剧</option>
-      </select>
-      <label class="field-label" for="paceSlider">节奏强度</label>
-      <input type="range" id="paceSlider" min="1" max="5" value="3" disabled>
-      <div class="placeholder-box">章节结构预览将在后续 PR 中展示。</div>
+      <div class="chapter-stats">
+        <div class="stat-card">
+          <span class="stat-label">识别章节数</span>
+          <strong id="chapterCount">0</strong>
+        </div>
+        <div class="stat-card neutral" id="chapterRequirement">
+          <span class="stat-label">状态</span>
+          <strong id="chapterRequirementText">尚未识别章节</strong>
+        </div>
+      </div>
+      <div class="chapter-message info" id="chapterMessage">输入小说文本后点击“识别章节”。</div>
+      <div class="chapter-list" id="chapterList">
+        <div class="empty-state">暂无章节结果</div>
+      </div>
     </section>
 
     <section class="panel yaml-panel" aria-labelledby="yamlTitle">

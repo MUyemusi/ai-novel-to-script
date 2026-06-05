@@ -212,6 +212,122 @@ input {
   color: #9c2f2f;
 }
 
+.chapter-stats {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.stat-card {
+  border: 1px solid #d7dee7;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 14px;
+}
+
+.stat-card strong {
+  display: block;
+  margin-top: 6px;
+  color: #243447;
+  font-size: 22px;
+}
+
+.stat-card.success {
+  border-color: #a9d8b7;
+  background: #eef9f1;
+}
+
+.stat-card.warning {
+  border-color: #ebcf8b;
+  background: #fff8e7;
+}
+
+.stat-card.error {
+  border-color: #efb2b2;
+  background: #fff0f0;
+}
+
+.stat-label {
+  color: #647386;
+  font-size: 13px;
+}
+
+.chapter-message {
+  border-radius: 6px;
+  margin-bottom: 16px;
+  padding: 10px 12px;
+  line-height: 1.5;
+}
+
+.chapter-message.info {
+  background: #edf3f8;
+  color: #31577d;
+}
+
+.chapter-message.success {
+  background: #eaf7ee;
+  color: #28623b;
+}
+
+.chapter-message.warning {
+  background: #fff5df;
+  color: #7a560e;
+}
+
+.chapter-message.error {
+  background: #fdecec;
+  color: #9c2f2f;
+}
+
+.chapter-list {
+  display: grid;
+  gap: 12px;
+}
+
+.chapter-card {
+  border: 1px solid #d7dee7;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 14px;
+}
+
+.chapter-card h3 {
+  margin: 0 0 6px;
+  font-size: 17px;
+}
+
+.chapter-id {
+  display: inline-block;
+  margin-bottom: 10px;
+  border-radius: 999px;
+  background: #edf3f8;
+  color: #38618c;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.chapter-summary {
+  margin: 0 0 10px;
+  color: #4f5f70;
+  line-height: 1.6;
+}
+
+.chapter-length {
+  color: #647386;
+  font-size: 13px;
+}
+
+.empty-state {
+  border: 1px dashed #bac6d4;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #667586;
+  padding: 18px;
+  text-align: center;
+}
+
 .muted {
   color: #647386;
   line-height: 1.7;

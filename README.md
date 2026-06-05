@@ -4,7 +4,7 @@
 
 AI 小说转剧本工具是一个比赛 Demo 项目，面向小说作者，目标是将 3 个章节以上的小说文本逐步转换为结构化 YAML 剧本初稿。
 
-当前项目已调整为前后端分离结构：前端使用 HTML、CSS 和原生 JavaScript，后端使用 FastAPI。当前 PR 仅完成结构调整和健康检查接口，章节解析 API、剧本 YAML 生成、Schema 校验、Word/PDF 导出和 AI API 接入仍属于后续计划。
+当前项目已调整为前后端分离结构：前端使用 HTML、CSS 和原生 JavaScript，后端使用 FastAPI。当前后端已提供健康检查接口和章节解析 API，剧本 YAML 生成、Schema 校验、Word/PDF 导出和 AI API 接入仍属于后续计划。
 
 ## 当前技术栈
 
@@ -20,6 +20,7 @@ AI 小说转剧本工具是一个比赛 Demo 项目，面向小说作者，目�
 - pytest 测试运行配置
 - 前后端分离目录结构
 - FastAPI 健康检查接口 `/health`
+- 章节解析接口 `POST /api/chapters/parse`
 - 前端静态页面骨架
 
 ## 项目结构
@@ -113,6 +114,22 @@ http://127.0.0.1:8000
 GET http://127.0.0.1:8000/health
 ```
 
+章节解析接口：
+
+```text
+POST http://127.0.0.1:8000/api/chapters/parse
+```
+
+请求示例：
+
+```json
+{
+  "text": "第1章 雨夜来信\n林舟站在旧书店门口。\n\n第2章 南桥仓库\n他来到南桥仓库。\n\n第3章 真相浮现\n沈月说出了真相。"
+}
+```
+
+返回内容包括章节数量、是否满足至少 3 章要求、章节标题、摘要预览、正文预览和正文长度。接口不会返回完整章节正文。
+
 ## 启动前端
 
 ```bash
@@ -147,7 +164,8 @@ python -m pytest
 - PR 1：小说章节自动切分功能
 - PR 2：虚拟环境搭建、依赖管理与 pytest 测试运行配置
 - PR 3：前后端分离架构调整
-- 后续 PR：章节解析 API、剧本 YAML 生成 API、Schema 校验 API 等功能
+- PR 4：章节解析 API
+- 后续 PR：剧本 YAML 生成 API、Schema 校验 API 等功能
 
 ## 时间规范说明
 

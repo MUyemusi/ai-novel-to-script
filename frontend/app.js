@@ -17,6 +17,12 @@ function initApp() {
   elements.inputStatus = document.getElementById("inputStatus");
   elements.txtUpload = document.getElementById("txtUpload");
   elements.parseChaptersBtn = document.getElementById("parseChaptersBtn");
+  elements.generateYamlBtn = document.getElementById("generateYamlBtn");
+  elements.chapterCount = document.getElementById("chapterCount");
+  elements.chapterRequirement = document.getElementById("chapterRequirement");
+  elements.chapterRequirementText = document.getElementById("chapterRequirementText");
+  elements.chapterMessage = document.getElementById("chapterMessage");
+  elements.chapterList = document.getElementById("chapterList");
   elements.previewModal = document.getElementById("previewModal");
 
   document.getElementById("topLoadExampleBtn").addEventListener("click", loadExampleNovel);
@@ -27,25 +33,26 @@ function initApp() {
   document.getElementById("previewScriptBtn").addEventListener("click", () => showComingSoon("最终剧本预览"));
   document.getElementById("closePreviewBtn").addEventListener("click", closePreviewModal);
 
-  elements.parseChaptersBtn.addEventListener("click", () => showComingSoon("章节识别前端接入"));
+  elements.parseChaptersBtn.addEventListener("click", parseChapters);
   elements.novelInput.addEventListener("input", handleTextInput);
   elements.txtUpload.addEventListener("change", handleTxtUpload);
 
   updateTextStats();
+  resetChapterResults();
   showStatus("等待输入小说文本", "info");
   console.log("AI 小说转剧本工具前端已初始化。");
 }
 
 function handleTextInput() {
   state.rawNovelText = elements.novelInput.value;
+  resetChapterResults();
   const count = updateTextStats();
   if (count > 0) {
     showStatus(`已输入 ${count} 字`, "success");
-    elements.parseChaptersBtn.classList.add("ready");
   } else {
     showStatus("等待输入小说文本", "info");
-    elements.parseChaptersBtn.classList.remove("ready");
   }
+  updateActionButtons();
 }
 
 function handleTxtUpload(event) {
@@ -65,8 +72,9 @@ function handleTxtUpload(event) {
   reader.onload = () => {
     elements.novelInput.value = String(reader.result || "");
     state.rawNovelText = elements.novelInput.value;
+    resetChapterResults();
     updateTextStats();
-    elements.parseChaptersBtn.classList.toggle("ready", state.rawNovelText.trim().length > 0);
+    updateActionButtons();
     showStatus("TXT 文件读取成功", "success");
   };
   reader.onerror = () => {
@@ -85,8 +93,9 @@ async function loadExampleNovel() {
     const data = await response.json();
     elements.novelInput.value = data.text || "";
     state.rawNovelText = elements.novelInput.value;
+    resetChapterResults();
     updateTextStats();
-    elements.parseChaptersBtn.classList.toggle("ready", state.rawNovelText.trim().length > 0);
+    updateActionButtons();
     showStatus("示例小说加载成功", "success");
   } catch (error) {
     showStatus("示例小说加载失败，请确认后端服务已启动", "error");
@@ -96,10 +105,133 @@ async function loadExampleNovel() {
 function clearNovelText() {
   elements.novelInput.value = "";
   state.rawNovelText = "";
+  state.chapters = [];
   elements.txtUpload.value = "";
   updateTextStats();
-  elements.parseChaptersBtn.classList.remove("ready");
+  resetChapterResults();
+  updateActionButtons();
   showStatus("已清空输入内容", "info");
+}
+
+async function parseChapters() {
+  if (!state.rawNovelText.trim()) {
+    showStatus("请先输入或加载小说文本。", "warning");
+    renderChapterSummary({
+      chapter_count: 0,
+      is_valid: false,
+      min_required: 3,
+      message: "请先输入或加载小说文本。",
+      statusType: "warning",
+    });
+    renderChapterCards([]);
+    return;
+  }
+
+  showStatus("正在识别章节……", "info");
+  renderChapterSummary({
+    chapter_count: 0,
+    is_valid: false,
+    min_required: 3,
+    message: "正在识别章节……",
+    statusType: "info",
+  });
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/chapters/parse`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ text: state.rawNovelText }),
+    });
+    if (!response.ok) {
+      throw new Error("Chapter parse request failed");
+    }
+
+    const result = await response.json();
+    state.chapters = result.chapters || [];
+    renderChapterSummary(result);
+    renderChapterCards(state.chapters);
+    updateActionButtons();
+    showStatus(result.message, result.is_valid ? "success" : "warning");
+  } catch (error) {
+    state.chapters = [];
+    renderChapterSummary({
+      chapter_count: 0,
+      is_valid: false,
+      min_required: 3,
+      message: "章节识别失败，请确认后端服务已启动。",
+      statusType: "error",
+    });
+    renderChapterCards([]);
+    updateActionButtons();
+    showStatus("章节识别失败，请确认后端服务已启动。", "error");
+  }
+}
+
+function renderChapterSummary(result) {
+  const count = result.chapter_count || 0;
+  const isValid = Boolean(result.is_valid);
+  const statusType = result.statusType || (isValid ? "success" : count > 0 ? "warning" : "info");
+  const requirementText = isValid
+    ? "满足生成要求"
+    : count > 0
+      ? `不满足 ${result.min_required || 3} 章要求`
+      : "尚未识别章节";
+
+  elements.chapterCount.textContent = String(count);
+  elements.chapterRequirement.className = `stat-card ${statusType}`;
+  elements.chapterRequirementText.textContent = requirementText;
+  elements.chapterMessage.textContent = result.message || "输入小说文本后点击“识别章节”。";
+  elements.chapterMessage.className = `chapter-message ${statusType}`;
+}
+
+function renderChapterCards(chapters) {
+  if (!chapters.length) {
+    elements.chapterList.innerHTML = '<div class="empty-state">暂无章节结果</div>';
+    return;
+  }
+
+  elements.chapterList.innerHTML = chapters
+    .map((chapter) => {
+      const title = escapeHtml(chapter.title || "未命名章节");
+      const summary = escapeHtml(chapter.summary || "暂无摘要预览");
+      const chapterId = escapeHtml(chapter.chapter_id || "");
+      const order = chapter.order || "";
+      const contentLength = chapter.content_length || 0;
+
+      return `
+        <article class="chapter-card">
+          <h3>第 ${order} 章：${title}</h3>
+          <span class="chapter-id">${chapterId}</span>
+          <p class="chapter-summary">摘要：${summary}</p>
+          <div class="chapter-length">字数：${contentLength}</div>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function resetChapterResults() {
+  state.chapters = [];
+  renderChapterSummary({
+    chapter_count: 0,
+    is_valid: false,
+    min_required: 3,
+    message: "输入小说文本后点击“识别章节”。",
+    statusType: "info",
+  });
+  renderChapterCards([]);
+}
+
+function updateActionButtons() {
+  const hasText = state.rawNovelText.trim().length > 0;
+  const hasEnoughChapters = state.chapters.length >= 3;
+
+  elements.parseChaptersBtn.classList.toggle("ready", hasText);
+  elements.generateYamlBtn.classList.toggle("ready", hasEnoughChapters);
+  elements.generateYamlBtn.classList.toggle("disabled-action", !hasEnoughChapters);
+  elements.generateYamlBtn.setAttribute("aria-disabled", String(!hasEnoughChapters));
 }
 
 function updateTextStats() {
@@ -115,6 +247,15 @@ function showStatus(message, type = "info") {
 
 function showComingSoon(featureName) {
   showStatus(`${featureName} 将在后续 PR 中实现。`, "info");
+}
+
+function escapeHtml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function closePreviewModal() {

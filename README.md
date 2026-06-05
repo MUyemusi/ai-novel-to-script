@@ -23,6 +23,7 @@ AI 小说转剧本工具是一个比赛 Demo 项目，面向小说作者，目�
 - 章节解析接口 `POST /api/chapters/parse`
 - 示例小说接口 `GET /api/examples/novel`
 - 前端小说输入区：支持文本粘贴、txt 上传、一键加载示例、清空文本和字数统计
+- 前端章节识别：调用章节解析接口并展示章节数、3 章要求状态和章节卡片
 - 前端静态页面骨架
 
 ## 项目结构
@@ -160,6 +161,8 @@ cd backend
 uvicorn main:app --reload
 ```
 
+输入、上传或加载小说文本后，点击“识别章节”会调用 `POST /api/chapters/parse`，页面会展示章节数、是否满足 3 章要求以及章节标题、摘要预览和正文长度。
+
 ## 运行测试
 
 在项目根目录执行：
@@ -184,6 +187,7 @@ python -m pytest
 - PR 4：章节解析 API
 - PR 5：示例小说 API
 - PR 6：前端小说输入区
+- PR 7：前端接入章节解析 API
 - 后续 PR：剧本 YAML 生成 API、Schema 校验 API 等功能
 
 ## 时间规范说明

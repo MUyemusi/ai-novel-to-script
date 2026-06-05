@@ -2,43 +2,90 @@
 
 ## 项目简介
 
-AI 小说转剧本工具面向小说作者，旨在将 3 个章节以上的小说文本转换为结构化 YAML 剧本初稿。该工具帮助作者快速生成可编辑、可打磨的剧本基础内容，降低小说改编剧本的门槛。
+AI 小说转剧本工具是一个比赛 Demo 项目，面向小说作者，目标是将 3 个章节以上的小说文本逐步转换为结构化 YAML 剧本初稿。
 
-## 核心功能规划
+当前项目仍保持 `src + tests + Streamlit Demo` 的基础结构，尚未进行前后端分离改造。
 
-- 小说章节识别与切分
-- 人物、地点、剧情事件提取
-- 剧本幕结构与场景生成
-- 动作描写和对白生成
-- YAML 格式输出
-- YAML Schema 校验
-- 质量检查报告
+## 当前已完成功能
+
+- 小说章节自动切分功能
+- 基础 pytest 测试运行配置
+- Streamlit Demo 入口页面
+
+YAML 生成、Schema 校验、Word/PDF 导出、AI API 接入等功能属于后续计划，当前版本尚未实现。
 
 ## 技术栈
 
 - Python
 - Streamlit
-- PyYAML
-- jsonschema
 - pytest
 
 ## 项目结构
 
-- `app.py`：Streamlit 最小可运行页面入口
+- `app.py`：Streamlit Demo 入口
 - `requirements.txt`：项目依赖
-- `src/`：核心模块占位文件
-- `docs/`：Schema 设计文档、MVP 说明、开发过程记录
-- `examples/`：示例小说和示例输出 YAML
-- `tests/`：测试占位文件
+- `pytest.ini`：pytest 测试运行配置
+- `src/`：核心 Python 模块
+- `tests/`：单元测试
+- `docs/`：设计文档与开发过程记录
+- `examples/`：示例小说和示例输出
 - `assets/`：静态资源目录
 
-## 安装方式
+## 环境准备
+
+项目建议使用独立 Python 虚拟环境运行，统一虚拟环境名称为 `ai-novel-to-script-venv`。
+
+创建虚拟环境：
+
+```bash
+python -m venv ai-novel-to-script-venv
+```
+
+Windows PowerShell 激活虚拟环境：
+
+```powershell
+.\ai-novel-to-script-venv\Scripts\Activate.ps1
+```
+
+如果 PowerShell 提示禁止运行脚本，可在当前 PowerShell 窗口临时执行：
+
+```powershell
+Set-ExecutionPolicy -ExecutionPolicy RemoteSigned -Scope Process
+```
+
+然后再次激活：
+
+```powershell
+.\ai-novel-to-script-venv\Scripts\Activate.ps1
+```
+
+Git Bash 激活虚拟环境：
+
+```bash
+source ai-novel-to-script-venv/Scripts/activate
+```
+
+macOS / Linux 激活虚拟环境：
+
+```bash
+source ai-novel-to-script-venv/bin/activate
+```
+
+## 安装依赖
 
 ```bash
 pip install -r requirements.txt
 ```
 
-## 启动方式
+## 运行测试
+
+在项目根目录执行：
+
+```bash
+python -m pytest
+```
+
+## 启动 Streamlit Demo
 
 ```bash
 streamlit run app.py
@@ -48,25 +95,15 @@ streamlit run app.py
 
 - YAML Schema 设计文档：`docs/yaml_schema_design.md`
 - MVP Schema 说明：`docs/mvp_schema.md`
+- 开发过程记录：`docs/process_log.md`
 
-## Demo 视频链接
-
-待补充
-
-## 第三方依赖说明
-
-- `streamlit`：用于构建交互式 Web 应用界面
-- `pyyaml`：用于 YAML 序列化与反序列化
-- `jsonschema`：用于后续实现 YAML Schema 校验规则
-- `pytest`：用于测试占位和未来功能验证
-
-## 原创功能说明
-
-本项目的原创部分包括：章节解析逻辑、剧本 YAML 结构设计、小说转剧本提示词、YAML 校验规则和交互式 Demo 页面。
-
-## 开发过程说明
+## PR 开发说明
 
 本项目采用 PR 分阶段开发，每个 PR 只完成一个独立功能，确保持续迭代和可回溯的开发记录。
+
+- PR 1：小说章节自动切分功能
+- PR 2：虚拟环境搭建、依赖管理与 pytest 测试运行配置
+- 后续 PR：根据比赛 Demo 需求继续补充转换、校验与页面整合能力
 
 ## 时间规范说明
 

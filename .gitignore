@@ -1,12 +1,18 @@
 # Python cache
 __pycache__/
+*.pyc
 *.py[cod]
 *$py.class
 
 # Virtual environment
+ai-novel-to-script-venv/
 .venv/
 venv/
 env/
+
+# Python environment files
+.env
+.pytest_cache/
 
 # IDE
 .vscode/

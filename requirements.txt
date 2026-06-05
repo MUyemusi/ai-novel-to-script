@@ -1,4 +1,2 @@
 streamlit
-pyyaml
-jsonschema
 pytest

@@ -1,3 +1,25 @@
+const TONE_STYLES = [
+  "现实",
+  "严肃",
+  "诙谐",
+  "深刻",
+  "浪漫",
+  "悬疑",
+  "热血",
+  "治愈",
+  "冷峻",
+  "诗意",
+];
+
+const MEDIA_TYPES = [
+  "影视剧",
+  "短剧",
+  "舞台剧",
+  "广播剧",
+  "分镜初稿",
+  "有声书改编",
+];
+
 const state = {
   rawNovelText: "",
   chapters: [],
@@ -5,6 +27,13 @@ const state = {
   validationResult: null,
   previewReady: false,
   previewModalOpen: false,
+  adaptationProfile: {
+    tone_style: "现实",
+    medium: "影视剧",
+    tone_intensity: 50,
+    adaptation_degree: 50,
+    dialogue_preservation_degree: 60,
+  },
 };
 
 const API_BASE_URL = "http://127.0.0.1:8000";
@@ -24,6 +53,18 @@ function initApp() {
   elements.chapterMessage = document.getElementById("chapterMessage");
   elements.chapterList = document.getElementById("chapterList");
   elements.previewModal = document.getElementById("previewModal");
+  
+  // Adaptation profile elements
+  elements.toneSelect = document.getElementById("toneSelect");
+  elements.mediumSelect = document.getElementById("mediumSelect");
+  elements.toneIntensity = document.getElementById("toneIntensity");
+  elements.toneIntensityValue = document.getElementById("toneIntensityValue");
+  elements.adaptationDegree = document.getElementById("adaptationDegree");
+  elements.adaptationDegreeValue = document.getElementById("adaptationDegreeValue");
+  elements.dialoguePreservationDegree = document.getElementById("dialoguePreservationDegree");
+  elements.dialoguePreservationDegreeValue = document.getElementById("dialoguePreservationDegreeValue");
+  elements.adaptationSummaryText = document.getElementById("adaptationSummaryText");
+  elements.backendStatus = document.getElementById("backendStatus");
 
   document.getElementById("topLoadExampleBtn").addEventListener("click", loadExampleNovel);
   document.getElementById("panelLoadExampleBtn").addEventListener("click", loadExampleNovel);
@@ -36,10 +77,19 @@ function initApp() {
   elements.parseChaptersBtn.addEventListener("click", parseChapters);
   elements.novelInput.addEventListener("input", handleTextInput);
   elements.txtUpload.addEventListener("change", handleTxtUpload);
+  
+  // Adaptation profile event listeners
+  elements.toneSelect.addEventListener("change", updateAdaptationSummary);
+  elements.mediumSelect.addEventListener("change", updateAdaptationSummary);
+  elements.toneIntensity.addEventListener("input", updateAdaptationSummary);
+  elements.adaptationDegree.addEventListener("input", updateAdaptationSummary);
+  elements.dialoguePreservationDegree.addEventListener("input", updateAdaptationSummary);
 
   updateTextStats();
   resetChapterResults();
   showStatus("等待输入小说文本", "info");
+  loadAndRenderStyleOptions();
+  checkBackendStylesApi();
   console.log("AI 小说转剧本工具前端已初始化。");
 }
 
@@ -261,6 +311,103 @@ function escapeHtml(value) {
 function closePreviewModal() {
   state.previewModalOpen = false;
   elements.previewModal.hidden = true;
+}
+
+async function loadAndRenderStyleOptions() {
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/script/styles`);
+    if (response.ok) {
+      const data = await response.json();
+      const toneOptions = data.tone_options || TONE_STYLES;
+      const mediumOptions = data.medium_options || MEDIA_TYPES;
+      const defaults = data.defaults || state.adaptationProfile;
+
+      // Update state with defaults from API
+      state.adaptationProfile = defaults;
+
+      // Render tone options
+      elements.toneSelect.innerHTML = toneOptions
+        .map((tone) => `<option value="${escapeHtml(tone)}">${escapeHtml(tone)}</option>`)
+        .join("");
+
+      // Render medium options
+      elements.mediumSelect.innerHTML = mediumOptions
+        .map((medium) => `<option value="${escapeHtml(medium)}">${escapeHtml(medium)}</option>`)
+        .join("");
+
+      initializeAdaptationProfile();
+    } else {
+      throw new Error("API returned non-200 status");
+    }
+  } catch (error) {
+    // Fallback to local defaults if API fails
+    console.warn("Failed to load style options from API, using local defaults.", error);
+    elements.toneSelect.innerHTML = TONE_STYLES
+      .map((tone) => `<option value="${escapeHtml(tone)}">${escapeHtml(tone)}</option>`)
+      .join("");
+
+    elements.mediumSelect.innerHTML = MEDIA_TYPES
+      .map((medium) => `<option value="${escapeHtml(medium)}">${escapeHtml(medium)}</option>`)
+      .join("");
+
+    initializeAdaptationProfile();
+  }
+}
+
+function initializeAdaptationProfile() {
+  // Initialize dropdowns with saved or default values
+  elements.toneSelect.value = state.adaptationProfile.tone_style;
+  elements.mediumSelect.value = state.adaptationProfile.medium;
+  elements.toneIntensity.value = state.adaptationProfile.tone_intensity;
+  elements.adaptationDegree.value = state.adaptationProfile.adaptation_degree;
+  elements.dialoguePreservationDegree.value = state.adaptationProfile.dialogue_preservation_degree;
+
+  updateAdaptationSummary();
+}
+
+function updateAdaptationSummary() {
+  const toneStyle = elements.toneSelect.value;
+  const mediumType = elements.mediumSelect.value;
+  const toneIntensity = parseInt(elements.toneIntensity.value, 10);
+  const adaptationDegree = parseInt(elements.adaptationDegree.value, 10);
+  const dialoguePreservationDegree = parseInt(elements.dialoguePreservationDegree.value, 10);
+
+  // Update state
+  state.adaptationProfile.tone_style = toneStyle;
+  state.adaptationProfile.medium = mediumType;
+  state.adaptationProfile.tone_intensity = toneIntensity;
+  state.adaptationProfile.adaptation_degree = adaptationDegree;
+  state.adaptationProfile.dialogue_preservation_degree = dialoguePreservationDegree;
+
+  // Update slider value displays
+  elements.toneIntensityValue.textContent = `${toneIntensity}%`;
+  elements.adaptationDegreeValue.textContent = `${adaptationDegree}%`;
+  elements.dialoguePreservationDegreeValue.textContent = `${dialoguePreservationDegree}%`;
+
+  // Update summary text
+  const summaryText = `以${toneStyle}风格生成，风格体现程度为 ${toneIntensity}%；适配${mediumType}，调整自由度为 ${adaptationDegree}%；原文对白保留度为 ${dialoguePreservationDegree}%。`;
+  elements.adaptationSummaryText.textContent = summaryText;
+}
+
+function checkBackendStylesApi() {
+  // Check if backend styles API is available for diagnostic purposes
+  fetch(`${API_BASE_URL}/api/script/styles`)
+    .then((response) => {
+      if (response.ok) {
+        elements.backendStatus.hidden = false;
+        elements.backendStatus.className = "backend-status info";
+        elements.backendStatus.textContent = "后端风格配置接口已连接。";
+      } else {
+        elements.backendStatus.hidden = false;
+        elements.backendStatus.className = "backend-status error";
+        elements.backendStatus.textContent = "后端风格配置接口无响应。";
+      }
+    })
+    .catch(() => {
+      elements.backendStatus.hidden = false;
+      elements.backendStatus.className = "backend-status error";
+      elements.backendStatus.textContent = "后端风格配置接口不可用。";
+    });
 }
 
 document.addEventListener("DOMContentLoaded", initApp);

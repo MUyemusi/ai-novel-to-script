@@ -67,7 +67,72 @@
       </div>
     </section>
 
-    <section class="panel yaml-panel" aria-labelledby="yamlTitle">
+    <section class="panel style-panel" aria-labelledby="adaptationTitle">
+      <div class="panel-heading">
+        <div>
+          <p class="section-kicker">Adaptation</p>
+          <h2 id="adaptationTitle">改编调音台</h2>
+        </div>
+      </div>
+      
+      <div class="style-selectors">
+        <div class="selector-group">
+          <label for="toneSelect" class="field-label">风格调性</label>
+          <select id="toneSelect" aria-label="风格调性选择">
+            <option value="现实">现实</option>
+            <option value="严肃">严肃</option>
+            <option value="诙谐">诙谐</option>
+            <option value="深刻">深刻</option>
+            <option value="浪漫">浪漫</option>
+            <option value="悬疑">悬疑</option>
+            <option value="热血">热血</option>
+            <option value="治愈">治愈</option>
+            <option value="冷峻">冷峻</option>
+            <option value="诗意">诗意</option>
+          </select>
+        </div>
+
+        <div class="selector-group">
+          <label for="mediumSelect" class="field-label">适用场景</label>
+          <select id="mediumSelect" aria-label="适用场景选择">
+            <option value="影视剧">影视剧</option>
+            <option value="短剧">短剧</option>
+            <option value="舞台剧">舞台剧</option>
+            <option value="广播剧">广播剧</option>
+            <option value="分镜初稿">分镜初稿</option>
+            <option value="有声书改编">有声书改编</option>
+          </select>
+        </div>
+      </div>
+
+      <div id="styleParameters" class="style-parameters">
+        <div class="parameter-group">
+          <label for="toneIntensity" class="field-label">风格体现程度</label>
+          <input type="range" id="toneIntensity" min="0" max="100" value="50" aria-label="风格体现程度">
+          <span id="toneIntensityValue" class="parameter-value">50%</span>
+        </div>
+
+        <div class="parameter-group">
+          <label for="adaptationDegree" class="field-label">适用场景调整自由度</label>
+          <input type="range" id="adaptationDegree" min="0" max="100" value="50" aria-label="适用场景调整自由度">
+          <span id="adaptationDegreeValue" class="parameter-value">50%</span>
+        </div>
+
+        <div class="parameter-group">
+          <label for="dialoguePreservationDegree" class="field-label">原文对白保留度</label>
+          <input type="range" id="dialoguePreservationDegree" min="0" max="100" value="60" aria-label="原文对白保留度">
+          <span id="dialoguePreservationDegreeValue" class="parameter-value">60%</span>
+        </div>
+      </div>
+
+      <div id="adaptationSummary" class="adaptation-summary">
+        <p id="adaptationSummaryText" class="muted"></p>
+      </div>
+
+      <div id="backendStatus" class="backend-status info" hidden>后端风格配置接口已连接。</div>
+    </section>
+
+    <section class="panel output-panel" aria-labelledby="yamlTitle">
       <div class="panel-heading">
         <div>
           <p class="section-kicker">Output</p>

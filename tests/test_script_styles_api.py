@@ -21,91 +21,122 @@ def test_health_check():
     assert response.json()["status"] == "ok"
 
 
-def test_script_styles_endpoint_status():
+def test_script_styles_endpoint_returns_200():
     """Test that /api/script/styles returns 200."""
     response = client.get("/api/script/styles")
     assert response.status_code == 200
 
 
-def test_script_styles_contains_styles_field():
-    """Test that response contains 'styles' field."""
+def test_script_styles_contains_tone_options():
+    """Test that response contains 'tone_options' field."""
     response = client.get("/api/script/styles")
     data = response.json()
-    assert "styles" in data
+    assert "tone_options" in data
+    assert isinstance(data["tone_options"], list)
 
 
-def test_script_styles_is_list():
-    """Test that 'styles' is a list."""
+def test_tone_options_contains_10_styles():
+    """Test that tone_options contains exactly 10 style options."""
     response = client.get("/api/script/styles")
     data = response.json()
-    assert isinstance(data["styles"], list)
+    assert len(data["tone_options"]) == 10
 
 
-def test_script_styles_minimum_count():
-    """Test that at least 6 styles are provided."""
+def test_tone_options_contains_expected_styles():
+    """Test that tone_options contains all expected style names."""
+    expected_styles = ["现实", "严肃", "诙谐", "深刻", "浪漫", "悬疑", "热血", "治愈", "冷峻", "诗意"]
     response = client.get("/api/script/styles")
     data = response.json()
-    assert len(data["styles"]) >= 6
+    for style in expected_styles:
+        assert style in data["tone_options"]
 
 
-def test_each_style_has_required_fields():
-    """Test that each style object has all required fields."""
+def test_script_styles_contains_medium_options():
+    """Test that response contains 'medium_options' field."""
     response = client.get("/api/script/styles")
     data = response.json()
-    required_fields = {"id", "label", "adjective", "script_type", "description", "defaults"}
-    for style in data["styles"]:
-        for field in required_fields:
-            assert field in style, f"Style {style.get('id')} missing field: {field}"
+    assert "medium_options" in data
+    assert isinstance(data["medium_options"], list)
 
 
-def test_defaults_has_required_parameters():
-    """Test that defaults object has all required parameters."""
+def test_medium_options_contains_6_media_types():
+    """Test that medium_options contains exactly 6 media type options."""
     response = client.get("/api/script/styles")
     data = response.json()
-    required_params = {"tone_intensity", "adaptation_degree", "dialogue_preservation_degree"}
-    for style in data["styles"]:
-        for param in required_params:
-            assert param in style["defaults"], (
-                f"Style {style.get('id')} defaults missing param: {param}"
-            )
+    assert len(data["medium_options"]) == 6
 
 
-def test_script_styles_default_style_id():
-    """Test that default_style_id is returned."""
+def test_medium_options_contains_expected_types():
+    """Test that medium_options contains all expected media types."""
+    expected_types = ["影视剧", "短剧", "舞台剧", "广播剧", "分镜初稿", "有声书改编"]
     response = client.get("/api/script/styles")
     data = response.json()
-    assert "default_style_id" in data
+    for medium in expected_types:
+        assert medium in data["medium_options"]
 
 
-def test_default_style_id_exists_in_styles():
-    """Test that default_style_id corresponds to an existing style."""
+def test_script_styles_contains_defaults():
+    """Test that response contains 'defaults' field."""
     response = client.get("/api/script/styles")
     data = response.json()
-    default_id = data["default_style_id"]
-    style_ids = [style["id"] for style in data["styles"]]
-    assert default_id in style_ids
+    assert "defaults" in data
+    assert isinstance(data["defaults"], dict)
 
 
-def test_script_styles_message():
-    """Test that success message is returned."""
+def test_defaults_contains_tone_style():
+    """Test that defaults contains 'tone_style' key."""
+    response = client.get("/api/script/styles")
+    data = response.json()
+    assert "tone_style" in data["defaults"]
+
+
+def test_defaults_tone_style_is_valid():
+    """Test that defaults.tone_style is one of the tone options."""
+    response = client.get("/api/script/styles")
+    data = response.json()
+    tone_style = data["defaults"]["tone_style"]
+    assert tone_style in data["tone_options"]
+
+
+def test_defaults_contains_medium():
+    """Test that defaults contains 'medium' key."""
+    response = client.get("/api/script/styles")
+    data = response.json()
+    assert "medium" in data["defaults"]
+
+
+def test_defaults_medium_is_valid():
+    """Test that defaults.medium is one of the medium options."""
+    response = client.get("/api/script/styles")
+    data = response.json()
+    medium = data["defaults"]["medium"]
+    assert medium in data["medium_options"]
+
+
+def test_defaults_contains_tone_intensity():
+    """Test that defaults contains 'tone_intensity' key."""
+    response = client.get("/api/script/styles")
+    data = response.json()
+    assert "tone_intensity" in data["defaults"]
+
+
+def test_defaults_contains_adaptation_degree():
+    """Test that defaults contains 'adaptation_degree' key."""
+    response = client.get("/api/script/styles")
+    data = response.json()
+    assert "adaptation_degree" in data["defaults"]
+
+
+def test_defaults_contains_dialogue_preservation_degree():
+    """Test that defaults contains 'dialogue_preservation_degree' key."""
+    response = client.get("/api/script/styles")
+    data = response.json()
+    assert "dialogue_preservation_degree" in data["defaults"]
+
+
+def test_script_styles_contains_message():
+    """Test that response contains 'message' field."""
     response = client.get("/api/script/styles")
     data = response.json()
     assert "message" in data
-    assert data["message"] == "剧本风格配置加载成功。"
-
-
-def test_specific_styles_exist():
-    """Test that expected style IDs exist."""
-    response = client.get("/api/script/styles")
-    data = response.json()
-    style_ids = [style["id"] for style in data["styles"]]
-    expected_ids = [
-        "realistic_screenplay",
-        "elegant_stage_play",
-        "light_web_drama",
-        "suspense_short_film",
-        "delicate_audio_drama",
-        "passionate_adventure_drama",
-    ]
-    for expected_id in expected_ids:
-        assert expected_id in style_ids, f"Expected style '{expected_id}' not found"
+    assert isinstance(data["message"], str)

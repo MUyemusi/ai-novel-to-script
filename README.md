@@ -146,7 +146,14 @@ GET http://127.0.0.1:8000/api/examples/novel
 GET http://127.0.0.1:8000/api/script/styles
 ```
 
-该接口返回可供前端选择的剧本风格配置，包括"现实的影视剧""典雅的舞台剧""轻松的网络短剧"等 6 个风格选项。每个风格包含 `id`、`label`、`adjective`、`script_type`、`description` 和 `defaults`（包含 `tone_intensity`、`adaptation_degree`、`dialogue_preservation_degree`）。返回字段包括 `styles`、`default_style_id` 和 `message`。该接口用于后续前端风格选择器和剧本 YAML 生成功能提供基础配置数据。
+该接口返回风格调性选项、适用场景选项和默认参数。返回字段包括：
+
+- `tone_options`：风格调性列表（10 个选项：现实、严肃、诙谐、深刻、浪漫、悬疑、热血、治愈、冷峻、诗意）
+- `medium_options`：适用场景列表（6 个选项：影视剧、短剧、舞台剧、广播剧、分镜初稿、有声书改编）
+- `defaults`：默认参数对象，包含 `tone_style`、`medium`、`tone_intensity`、`adaptation_degree` 和 `dialogue_preservation_degree`
+- `message`：操作提示消息
+
+该接口用于前端剧本改编调音台的风格选择器渲染，以及后续剧本 YAML 生成功能提供基础配置数据。
 
 ## 启动前端
 
@@ -196,6 +203,7 @@ python -m pytest
 - PR 6：前端小说输入区
 - PR 7：前端接入章节解析 API
 - PR 8：剧本风格配置 API
+- PR 9：前端接入剧本风格选择器
 - 后续 PR：剧本 YAML 生成 API、Schema 校验 API 等功能
 
 ## 时间规范说明

@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 try:
@@ -12,6 +13,17 @@ except ModuleNotFoundError:
 
 
 app = FastAPI(title="AI 小说转剧本工具", version="0.1.0")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://127.0.0.1:5500",
+        "http://localhost:5500",
+    ],
+    allow_credentials=False,
+    allow_methods=["GET", "POST"],
+    allow_headers=["*"],
+)
 
 MIN_REQUIRED_CHAPTERS = 3
 SUMMARY_LIMIT = 80

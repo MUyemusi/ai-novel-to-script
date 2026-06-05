@@ -22,6 +22,7 @@ AI 小说转剧本工具是一个比赛 Demo 项目，面向小说作者，目�
 - FastAPI 健康检查接口 `/health`
 - 章节解析接口 `POST /api/chapters/parse`
 - 示例小说接口 `GET /api/examples/novel`
+- 剧本风格配置接口 `GET /api/script/styles`
 - 前端小说输入区：支持文本粘贴、txt 上传、一键加载示例、清空文本和字数统计
 - 前端章节识别：调用章节解析接口并展示章节数、3 章要求状态和章节卡片
 - 前端静态页面骨架
@@ -139,7 +140,13 @@ POST http://127.0.0.1:8000/api/chapters/parse
 GET http://127.0.0.1:8000/api/examples/novel
 ```
 
-该接口读取项目内置示例小说《雨夜来信》，为后续前端“一键加载示例小说”功能提供文本数据。返回字段包括 `title`、`text`、`source` 和 `message`。
+该接口读取项目内置示例小说《雨夜来信》，为后续前端“一键加载示例小说”功能提供文本数据。返回字段包括 `title`、`text`、`source` 和 `message`。剧本风格配置接口：
+
+```text
+GET http://127.0.0.1:8000/api/script/styles
+```
+
+该接口返回可供前端选择的剧本风格配置，包括"现实的影视剧""典雅的舞台剧""轻松的网络短剧"等 6 个风格选项。每个风格包含 `id`、`label`、`adjective`、`script_type`、`description` 和 `defaults`（包含 `tone_intensity`、`adaptation_degree`、`dialogue_preservation_degree`）。返回字段包括 `styles`、`default_style_id` 和 `message`。该接口用于后续前端风格选择器和剧本 YAML 生成功能提供基础配置数据。
 
 ## 启动前端
 
@@ -188,6 +195,7 @@ python -m pytest
 - PR 5：示例小说 API
 - PR 6：前端小说输入区
 - PR 7：前端接入章节解析 API
+- PR 8：剧本风格配置 API
 - 后续 PR：剧本 YAML 生成 API、Schema 校验 API 等功能
 
 ## 时间规范说明

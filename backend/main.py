@@ -8,8 +8,10 @@ from pydantic import BaseModel
 
 try:
     from backend.services.chapter_parser import split_chapters, validate_min_chapters
+    from backend.services.style_options import get_script_styles
 except ModuleNotFoundError:
     from services.chapter_parser import split_chapters, validate_min_chapters
+    from services.style_options import get_script_styles
 
 
 app = FastAPI(title="AI 小说转剧本工具", version="0.1.0")
@@ -64,6 +66,12 @@ def get_example_novel() -> dict[str, str]:
         "source": EXAMPLE_NOVEL_SOURCE,
         "message": "示例小说加载成功。",
     }
+
+
+@app.get("/api/script/styles")
+def get_styles() -> dict:
+    """Return available script style configurations for screenplay generation."""
+    return get_script_styles()
 
 
 @app.post("/api/chapters/parse")

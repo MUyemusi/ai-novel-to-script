@@ -82,3 +82,15 @@
 - 当前 PR 不实现 YAML 生成、Schema 校验、Word/PDF 导出或 AI 接入。
 
 时间说明：本记录使用中国北京时间 UTC+08:00。
+
+## PR 8：剧本风格配置 API
+
+- 新增 FastAPI 接口 `GET /api/script/styles`。
+- 新增服务文件 `backend/services/style_options.py`，定义 6 个剧本风格配置选项。
+- 每个风格包含 id、label、adjective、script_type、description 和 defaults 参数。
+- 风格选项包括"现实的影视剧""典雅的舞台剧""轻松的网络短剧""悬疑的影视短片""细腻的广播剧""热血的少年冒险剧"。
+- 新增测试文件 `tests/test_script_styles_api.py`，覆盖接口返回内容、风格字段、默认风格等。
+- 该接口用于后续前端风格选择器和剧本 YAML 生成功能提供基础配置数据。
+- 当前 PR 不实现前端风格选择器、YAML 生成、Schema 校验、Word/PDF 导出或 AI 接入。
+
+时间说明：本记录使用中国北京时间 UTC+08:00。

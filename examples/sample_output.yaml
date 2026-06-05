@@ -1,0 +1,79 @@
+screenplay:
+  meta:
+    title: "雨夜来信"
+    genre: "悬疑短剧"
+    adapted_from: "雨夜来信"
+    chapter_range: "第1章-第3章"
+    total_chapters: 3
+    total_scenes: 3
+    version: "v1.1"
+    created_at: "2026-06-05T10:00:00+08:00"
+  adaptation_settings:
+    script_type: "悬疑短剧"
+    strategy: "保留主要悬疑线索与人物冲突"
+  source_novel:
+    chapters:
+      - "第1章 雨夜来信"
+      - "第2章 南桥仓库"
+      - "第3章 真相浮现"
+  characters:
+    - name: "林舟"
+      role: "主角"
+      description: "旧书店老板，沉稳且敏感。"
+    - name: "沈月"
+      role: "核心线索人物"
+      description: "带来雨夜来信的访客，心中藏有压力。"
+    - name: "陈默"
+      role: "关键证人"
+      description: "南桥仓库管理员，掌握部分秘密。"
+  acts:
+    - act_number: 1
+      title: "雨夜来信"
+      scenes:
+        - scene_number: 1
+          title: "旧书店访客"
+          location: "旧书店"
+          time: "夜晚"
+          source: "第1章"
+          characters_present: ["林舟", "沈月"]
+          action: "沈月带着湿信来到旧书店，林舟接过信件，氛围紧张。"
+          dialogues:
+            - speaker: "沈月"
+              text: "这封信是谁寄来的？"
+            - speaker: "林舟"
+              text: "信封上没有署名，但字里行间有个熟悉的感觉。"
+    - act_number: 2
+      title: "仓库线索"
+      scenes:
+        - scene_number: 2
+          title: "南桥仓库调查"
+          location: "南桥仓库"
+          time: "黄昏"
+          source: "第2章"
+          characters_present: ["林舟", "陈默"]
+          action: "林舟与陈默在仓库内寻找线索，发现墙角刻字与暗号。"
+          dialogues:
+            - speaker: "陈默"
+              text: "这些刻字说明有人曾在这里留下提示。"
+            - speaker: "林舟"
+              text: "信中的内容和这些暗号有关联。"
+    - act_number: 3
+      title: "真相浮现"
+      scenes:
+        - scene_number: 3
+          title: "街角对峙"
+          location: "街角"
+          time: "夜晚"
+          source: "第3章"
+          characters_present: ["林舟", "沈月", "陈默"]
+          action: "三人在街角对峙，陈默揭示信件背后的秘密。"
+          dialogues:
+            - speaker: "沈月"
+              text: "如果我们不查清，这件事会继续发酵。"
+            - speaker: "陈默"
+              text: "这些线索指向的是真相，而不是偶然。"
+  quality_report:
+    coverage: "已覆盖第1-3章的关键情节框架。"
+    warnings:
+      - "部分人物内心动机需要后续补充。"
+      - "场景节奏可根据演出节奏调整。"

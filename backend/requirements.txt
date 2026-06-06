@@ -4,3 +4,5 @@ pyyaml
 jsonschema
 pytest
 httpx
+python-dotenv
+requests

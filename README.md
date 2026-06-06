@@ -28,10 +28,12 @@ AI 小说转剧本工具是一个比赛 Demo 项目，面向小说作者，目�
 - 前端章节识别：调用章节解析接口并展示章节数、3 章要求状态和章节卡片
 - 前端 YAML 结果展示、summary 统计和人物表展示
 - 前端 YAML 校验与 `screenplay.yaml` 下载
+- 前端可读剧本渲染：将当前 YAML 渲染为可复制的 Acts → Scenes → Characters → Dialogue 文本
 - 可选 LLM 生成：支持 `generation_mode` 为 `rule`、`llm`、`rule_fallback`
 - PR14：LLM 输出结构规范化与基础校验，轻微不规范结构会自动修复并返回 `warnings`
 - PR15：后端 YAML Schema 校验 API `POST /api/yaml/validate`
 - PR16：前端接入“校验 YAML”和“下载 YAML”按钮
+- PR17：前端接入“渲染剧本”按钮
 - 前端静态页面骨架
 
 ## 项目结构
@@ -188,6 +190,7 @@ uvicorn main:app --reload
 
 - 点击“校验 YAML”会调用 `POST /api/yaml/validate`，并展示 `valid`、`status`、`errors`、`warnings` 和重新计算的 `summary`。
 - 点击“下载 YAML”会把当前 YAML 编辑区内容保存为 `screenplay.yaml`。
+- 点击“渲染剧本”会把当前 YAML 渲染为可复制的可读剧本文本。每次手动修改 YAML 后，可再次点击该按钮刷新渲染结果。
 
 校验结果示例：
 
@@ -209,6 +212,19 @@ uvicorn main:app --reload
     "chapter_coverage_rate": 0.67
   }
 }
+```
+
+可读剧本渲染示例：
+
+```text
+《Rain Night》
+
+第1幕：Act 1 (Chapter ID: chapter_001)
+  场景1：Scene 1 (Chapter ID: chapter_001)
+    时空：Library / Night
+    角色：Lin
+    对白：
+      Lin：Who sent this?
 ```
 
 ## 运行测试
@@ -285,6 +301,16 @@ PR16 adds frontend controls next to the YAML output area:
 - `下载 YAML`: downloads the current YAML text as `screenplay.yaml`.
 
 The YAML validation result panel is scrollable so long error and warning lists remain usable. PR16 does not change backend validation rules and does not add script rendering, Word/PDF export, database, login, or API key exposure.
+
+## PR17: Frontend readable script rendering
+
+PR17 adds a frontend-only `渲染剧本` button next to the YAML output controls. It parses the current YAML text in the browser and renders a copyable screenplay draft with this hierarchy:
+
+```text
+Acts -> Scenes -> Characters -> Dialogue
+```
+
+The renderer shows `source_chapter_id` in act and scene headings, displays placeholders such as `暂无场景`、`暂无角色`、`暂无对白` for empty fields, and keeps long output scrollable. PR17 does not change YAML validation or download behavior, and it does not add paper preview, Word/PDF export, local re-rendering, database, or login features.
 
 ## 文档位置
 

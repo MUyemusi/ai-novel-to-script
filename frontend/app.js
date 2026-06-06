@@ -62,11 +62,15 @@ function initApp() {
   elements.yamlStatusBadge = document.getElementById("yamlStatusBadge");
   elements.validateYamlButton = document.getElementById("validateYamlButton");
   elements.downloadYamlButton = document.getElementById("downloadYamlButton");
+  elements.renderScriptButton = document.getElementById("renderScriptButton");
   elements.yamlValidationPanel = document.getElementById("yamlValidationPanel");
   elements.validationStatusText = document.getElementById("validationStatusText");
   elements.validationValidBadge = document.getElementById("validationValidBadge");
   elements.validationMetrics = document.getElementById("validationMetrics");
   elements.validationIssues = document.getElementById("validationIssues");
+  elements.readableScriptPanel = document.getElementById("readableScriptPanel");
+  elements.readableScriptOutput = document.getElementById("readableScriptOutput");
+  elements.readableScriptMeta = document.getElementById("readableScriptMeta");
   elements.scriptSummary = document.getElementById("scriptSummary");
   elements.summaryChapterCount = document.getElementById("summaryChapterCount");
   elements.summarySceneCount = document.getElementById("summarySceneCount");
@@ -93,7 +97,7 @@ function initApp() {
   document.getElementById("generateYamlBtn").addEventListener("click", generateYaml);
   elements.validateYamlButton.addEventListener("click", validateCurrentYaml);
   elements.downloadYamlButton.addEventListener("click", downloadCurrentYaml);
-  document.getElementById("cleanScriptBtn").addEventListener("click", () => showComingSoon("清洗渲染剧本"));
+  elements.renderScriptButton.addEventListener("click", renderReadableScript);
   document.getElementById("previewScriptBtn").addEventListener("click", () => showComingSoon("最终剧本预览"));
 
   elements.parseChaptersBtn.addEventListener("click", parseChapters);
@@ -134,6 +138,7 @@ function handleTextInput() {
 function handleYamlInput() {
   state.generatedYaml = getCurrentYaml();
   resetYamlValidation();
+  resetReadableScript();
   updateActionButtons();
 }
 
@@ -387,6 +392,7 @@ function resetYamlResults() {
   elements.yamlStatusBadge.textContent = "未生成";
   elements.validateYamlButton.textContent = "校验 YAML";
   resetYamlValidation();
+  resetReadableScript();
   renderYamlMessage("识别至少 3 章后可生成 YAML。", "info");
 }
 
@@ -410,6 +416,7 @@ function renderYamlResult(data) {
   elements.yamlOutput.value = data.yaml || "";
   state.validationResult = null;
   resetYamlValidation();
+  resetReadableScript();
   const warnings = data.warnings || [];
   const modeLabel = formatGenerationMode(data.generation_mode, warnings);
   const messageParts = [modeLabel, data.message || "剧本 YAML 生成成功。"].concat(warnings);
@@ -485,6 +492,7 @@ function renderYamlError(message) {
   elements.yamlOutput.value = "";
   state.validationResult = null;
   resetYamlValidation();
+  resetReadableScript();
   elements.scriptSummary.hidden = true;
   elements.charactersTable.hidden = true;
   elements.charactersList.innerHTML = "";
@@ -554,6 +562,122 @@ function downloadCurrentYaml() {
   link.remove();
   URL.revokeObjectURL(downloadUrl);
   renderYamlMessage("YAML 文件已准备下载。", "success");
+}
+
+function renderReadableScript() {
+  const yamlText = getCurrentYaml();
+  if (!yamlText.trim()) {
+    renderYamlMessage("请先生成或输入 YAML 后再渲染剧本。", "warning");
+    resetReadableScript();
+    return;
+  }
+
+  try {
+    const data = parseSimpleYaml(yamlText);
+    const screenplay = data && typeof data === "object" ? data.screenplay : null;
+    if (!screenplay || typeof screenplay !== "object") {
+      throw new Error("YAML 中缺少 screenplay 对象。");
+    }
+
+    const renderedText = buildReadableScriptText(screenplay);
+    elements.readableScriptOutput.value = renderedText;
+    elements.readableScriptPanel.hidden = false;
+    elements.readableScriptMeta.textContent = `${renderedText.split("\n").length} 行`;
+    renderYamlMessage("可读剧本已渲染，可直接复制。", "success");
+  } catch (error) {
+    elements.readableScriptPanel.hidden = false;
+    elements.readableScriptOutput.value = `渲染失败：${error.message || "YAML 解析失败，请先校验 YAML。"}`;
+    elements.readableScriptMeta.textContent = "渲染失败";
+    renderYamlMessage("YAML 渲染失败，请检查格式或先点击校验。", "error");
+  }
+}
+
+function buildReadableScriptText(screenplay) {
+  const title = stringifyValue(screenplay.title) || "未命名剧本";
+  const acts = Array.isArray(screenplay.acts) ? screenplay.acts : [];
+  const lines = [`《${title}》`, ""];
+
+  if (!acts.length) {
+    lines.push("暂无场景");
+    return lines.join("\n");
+  }
+
+  acts.forEach((act, actIndex) => {
+    const actTitle = stringifyValue(act.title || act.act_id) || `第${actIndex + 1}幕`;
+    const scenes = Array.isArray(act.scenes) ? act.scenes : [];
+    const actChapterLabel = collectActChapterIds(scenes);
+
+    lines.push(`第${actIndex + 1}幕：${actTitle} (Chapter ID: ${actChapterLabel})`);
+    if (act.summary) {
+      lines.push(`  概述：${stringifyValue(act.summary)}`);
+    }
+
+    if (!scenes.length) {
+      lines.push("  暂无场景");
+      lines.push("");
+      return;
+    }
+
+    scenes.forEach((scene, sceneIndex) => {
+      const sceneTitle = stringifyValue(scene.title || scene.scene_id) || `场景${sceneIndex + 1}`;
+      const chapterId = stringifyValue(scene.source_chapter_id) || "暂无章节 ID";
+      const characters = normalizeCharacterNames(scene.characters);
+      const dialogues = Array.isArray(scene.dialogues) ? scene.dialogues : [];
+
+      lines.push(`  场景${sceneIndex + 1}：${sceneTitle} (Chapter ID: ${chapterId})`);
+      if (scene.location || scene.time) {
+        lines.push(`    时空：${stringifyValue(scene.location) || "未注明地点"} / ${stringifyValue(scene.time) || "未注明时间"}`);
+      }
+      if (scene.summary) {
+        lines.push(`    场景概述：${stringifyValue(scene.summary)}`);
+      }
+
+      if (characters.length) {
+        lines.push(`    角色：${characters.join("、")}`);
+      } else {
+        lines.push("    角色：暂无角色");
+      }
+
+      if (!dialogues.length) {
+        lines.push("    对白：暂无对白");
+      } else {
+        lines.push("    对白：");
+        dialogues.forEach((dialogue) => {
+          const characterName = stringifyValue(dialogue && dialogue.character) || "未命名角色";
+          const lineText = stringifyValue(dialogue && (dialogue.line || dialogue.text || dialogue.dialogue)) || "暂无对白";
+          lines.push(`      ${characterName}：${lineText}`);
+        });
+      }
+      lines.push("");
+    });
+  });
+
+  return lines.join("\n").trimEnd();
+}
+
+function collectActChapterIds(scenes) {
+  const chapterIds = scenes
+    .map((scene) => stringifyValue(scene && scene.source_chapter_id))
+    .filter(Boolean);
+  return chapterIds.length ? Array.from(new Set(chapterIds)).join(", ") : "暂无章节 ID";
+}
+
+function normalizeCharacterNames(characters) {
+  if (!Array.isArray(characters)) {
+    return [];
+  }
+
+  return characters
+    .map((character) => {
+      if (typeof character === "string" || typeof character === "number") {
+        return stringifyValue(character);
+      }
+      if (character && typeof character === "object") {
+        return stringifyValue(character.name || character.character || character.character_id || character.id);
+      }
+      return "";
+    })
+    .filter(Boolean);
 }
 
 function renderYamlValidationResult(result) {
@@ -654,6 +778,16 @@ function resetYamlValidation() {
   elements.validationIssues.innerHTML = "";
 }
 
+function resetReadableScript() {
+  if (!elements.readableScriptPanel) {
+    return;
+  }
+
+  elements.readableScriptPanel.hidden = true;
+  elements.readableScriptOutput.value = "";
+  elements.readableScriptMeta.textContent = "尚未渲染";
+}
+
 function updateActionButtons() {
   const hasText = state.rawNovelText.trim().length > 0;
   const hasEnoughChapters = state.chapters.length >= 3;
@@ -674,9 +808,10 @@ function updateActionButtons() {
   elements.downloadYamlButton.classList.toggle("disabled-action", !hasYaml);
   elements.downloadYamlButton.disabled = !hasYaml;
   elements.downloadYamlButton.setAttribute("aria-disabled", String(!hasYaml));
-  document.getElementById("cleanScriptBtn").classList.toggle("disabled-action", !hasYaml);
-  document.getElementById("cleanScriptBtn").disabled = !hasYaml;
-  document.getElementById("cleanScriptBtn").setAttribute("aria-disabled", String(!hasYaml));
+  elements.renderScriptButton.classList.toggle("ready", hasYaml);
+  elements.renderScriptButton.classList.toggle("disabled-action", !hasYaml);
+  elements.renderScriptButton.disabled = !hasYaml;
+  elements.renderScriptButton.setAttribute("aria-disabled", String(!hasYaml));
   document.getElementById("previewScriptBtn").classList.toggle("disabled-action", !hasYaml);
   document.getElementById("previewScriptBtn").disabled = !hasYaml;
   document.getElementById("previewScriptBtn").setAttribute("aria-disabled", String(!hasYaml));
@@ -693,6 +828,191 @@ function formatValidationStatus(status) {
     error: "未通过",
   };
   return labels[status] || status || "未知";
+}
+
+function parseSimpleYaml(yamlText) {
+  const lines = yamlText
+    .replace(/\r\n/g, "\n")
+    .replace(/\t/g, "  ")
+    .split("\n")
+    .map((line) => {
+      const raw = line.replace(/\s+$/, "");
+      return {
+        indent: raw.length - raw.trimStart().length,
+        text: raw.trim(),
+      };
+    })
+    .filter((line) => line.text && !line.text.startsWith("#"));
+
+  if (!lines.length) {
+    return {};
+  }
+
+  const parsed = parseYamlBlock(lines, 0, lines[0].indent);
+  return parsed.value;
+}
+
+function parseYamlBlock(lines, startIndex, indent) {
+  const firstLine = lines[startIndex];
+  if (!firstLine || firstLine.indent < indent) {
+    return { value: null, nextIndex: startIndex };
+  }
+
+  if (firstLine.text.startsWith("- ")) {
+    return parseYamlList(lines, startIndex, indent);
+  }
+
+  return parseYamlMap(lines, startIndex, indent);
+}
+
+function parseYamlMap(lines, startIndex, indent) {
+  const result = {};
+  let index = startIndex;
+
+  while (index < lines.length) {
+    const line = lines[index];
+    if (line.indent < indent) {
+      break;
+    }
+    if (line.indent > indent) {
+      index += 1;
+      continue;
+    }
+    if (line.text.startsWith("- ")) {
+      break;
+    }
+
+    const separatorIndex = line.text.indexOf(":");
+    if (separatorIndex === -1) {
+      throw new Error(`无法解析 YAML 行：${line.text}`);
+    }
+
+    const key = line.text.slice(0, separatorIndex).trim();
+    const rawValue = line.text.slice(separatorIndex + 1).trim();
+    if (!key) {
+      throw new Error(`YAML key 为空：${line.text}`);
+    }
+
+    if (rawValue) {
+      result[key] = parseYamlScalar(rawValue);
+      index += 1;
+    } else {
+      const nextLine = lines[index + 1];
+      if (!nextLine || nextLine.indent <= indent) {
+        result[key] = null;
+        index += 1;
+      } else {
+        const nested = parseYamlBlock(lines, index + 1, nextLine.indent);
+        result[key] = nested.value;
+        index = nested.nextIndex;
+      }
+    }
+  }
+
+  return { value: result, nextIndex: index };
+}
+
+function parseYamlList(lines, startIndex, indent) {
+  const result = [];
+  let index = startIndex;
+
+  while (index < lines.length) {
+    const line = lines[index];
+    if (line.indent < indent) {
+      break;
+    }
+    if (line.indent > indent) {
+      index += 1;
+      continue;
+    }
+    if (!line.text.startsWith("- ")) {
+      break;
+    }
+
+    const itemText = line.text.slice(2).trim();
+    const nextLine = lines[index + 1];
+    const hasNestedBlock = nextLine && nextLine.indent > indent;
+
+    if (!itemText) {
+      if (hasNestedBlock) {
+        const nested = parseYamlBlock(lines, index + 1, nextLine.indent);
+        result.push(nested.value);
+        index = nested.nextIndex;
+      } else {
+        result.push(null);
+        index += 1;
+      }
+      continue;
+    }
+
+    if (looksLikeInlineMap(itemText)) {
+      const item = parseInlineMapItem(itemText);
+      if (hasNestedBlock) {
+        const nested = parseYamlMap(lines, index + 1, nextLine.indent);
+        result.push({ ...item, ...nested.value });
+        index = nested.nextIndex;
+      } else {
+        result.push(item);
+        index += 1;
+      }
+      continue;
+    }
+
+    result.push(parseYamlScalar(itemText));
+    index += 1;
+  }
+
+  return { value: result, nextIndex: index };
+}
+
+function looksLikeInlineMap(value) {
+  return /^[^:[\]{}]+:\s*/.test(value);
+}
+
+function parseInlineMapItem(value) {
+  const separatorIndex = value.indexOf(":");
+  const key = value.slice(0, separatorIndex).trim();
+  const rawValue = value.slice(separatorIndex + 1).trim();
+  return {
+    [key]: rawValue ? parseYamlScalar(rawValue) : null,
+  };
+}
+
+function parseYamlScalar(value) {
+  if (value === "null" || value === "~") {
+    return null;
+  }
+  if (value === "true") {
+    return true;
+  }
+  if (value === "false") {
+    return false;
+  }
+  if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+    return value.slice(1, -1);
+  }
+  if (value.startsWith("[") && value.endsWith("]")) {
+    return parseInlineArray(value);
+  }
+  if (/^-?\d+(\.\d+)?$/.test(value)) {
+    return Number(value);
+  }
+  return value;
+}
+
+function parseInlineArray(value) {
+  const inner = value.slice(1, -1).trim();
+  if (!inner) {
+    return [];
+  }
+  return inner.split(",").map((item) => parseYamlScalar(item.trim()));
+}
+
+function stringifyValue(value) {
+  if (value === null || value === undefined) {
+    return "";
+  }
+  return String(value).trim();
 }
 
 function updateTextStats() {

@@ -221,6 +221,32 @@ If the normalized result is still unusable, the backend automatically falls back
 
 This is only a lightweight structural normalizer and basic validator. It is not the full YAML Schema validation feature, and it does not add YAML download, Word/PDF export, or screenplay document preview. Those capabilities remain planned for later PRs.
 
+## PR15: YAML validation API
+
+PR15 adds a backend-only YAML validation API:
+
+```text
+POST /api/yaml/validate
+```
+
+Request body:
+
+```json
+{
+  "yaml": "screenplay:\n  meta: {}\n  ..."
+}
+```
+
+Response fields:
+
+- `valid`: whether validation passed without blocking errors
+- `status`: `pass`, `warning`, or `error`
+- `errors`: structured validation errors with `path` and `message`
+- `warnings`: structured quality warnings with `path` and `message`
+- `summary`: recalculated `chapter_count`, `scene_count`, `character_count`, and `chapter_coverage_rate`
+
+This API uses a backend MVP JSON Schema at `backend/schemas/screenplay_schema.json` plus lightweight business-rule checks. PR15 does not add a frontend validation button, YAML download, Word/PDF export, or screenplay document preview; those remain later PR work.
+
 ## 文档位置
 
 - YAML Schema 设计文档：`docs/yaml_schema_design.md`

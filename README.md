@@ -194,6 +194,7 @@ uvicorn main:app --reload
 - 点击“下载 YAML”会把当前 YAML 编辑区内容保存为 `screenplay.yaml`。
 - 点击“渲染剧本”会把当前 YAML 渲染为可复制的可读剧本文本。每次手动修改 YAML 后，可再次点击该按钮刷新渲染结果。
 - 点击“稿纸预览”会打开可编辑弹窗。弹窗优先载入已确认的最终剧本；如果还没有确认文本，则载入当前可读剧本文本。编辑后点击“确认最终剧本”会把文本保存到前端状态，作为后续 Word 导出的来源。关闭弹窗不会修改 YAML，也不会保存未确认的修改。
+- 在稿纸弹窗中确认最终剧本后，点击“导出 Word”会下载 `screenplay.docx`。导出内容来自已确认的最终剧本文本，不会自动使用未确认的弹窗编辑内容。
 
 校验结果示例：
 
@@ -322,6 +323,12 @@ PR18 adds a frontend-only `稿纸预览` modal. The modal loads the confirmed fi
 Inside the modal, users can edit the final script text and click `确认最终剧本` to save it into frontend state as the future Word export source. Closing the modal does not save unconfirmed edits and never changes the YAML textarea.
 
 PR18 does not add Word/PDF export, local re-rendering, backend APIs, database, login, or API key exposure.
+
+## PR19: Frontend Word export
+
+PR19 adds a frontend-only `导出 Word` button inside the paper preview modal. After users click `确认最终剧本`, the confirmed `state.finalScriptText` can be exported as `screenplay.docx`.
+
+The Word export is generated in the browser from the confirmed final text. It preserves line breaks and indentation from the readable script so the Acts -> Scenes -> Characters -> Dialogue hierarchy remains clear. PR19 does not add PDF export, local re-rendering, backend APIs, database, login, or API key exposure.
 
 ## 文档位置
 

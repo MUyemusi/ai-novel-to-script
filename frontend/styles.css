@@ -573,6 +573,57 @@ select:focus {
   font-size: 13px;
 }
 
+.readable-script-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 220px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: rgba(255, 252, 246, 0.78);
+  padding: 14px;
+}
+
+.readable-script-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.readable-script-heading h3 {
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.readable-script-heading span {
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+.readable-script-output {
+  width: 100%;
+  min-height: 180px;
+  max-height: 360px;
+  overflow: auto;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.62);
+  color: var(--text);
+  padding: 14px;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 13px;
+  line-height: 1.75;
+  white-space: pre;
+}
+
+.readable-script-output:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(190, 146, 80, 0.14);
+}
+
 .style-selectors {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

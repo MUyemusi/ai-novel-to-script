@@ -150,7 +150,7 @@
         <div class="output-actions">
           <button type="button" class="btn disabled-action" id="validateYamlButton" aria-disabled="true" disabled>校验 YAML</button>
           <button type="button" class="btn disabled-action" id="downloadYamlButton" aria-disabled="true" disabled>下载 YAML</button>
-          <button type="button" class="btn disabled-action" id="cleanScriptBtn" aria-disabled="true" disabled>清洗为剧本</button>
+          <button type="button" class="btn disabled-action" id="renderScriptButton" aria-disabled="true" disabled>渲染剧本</button>
         </div>
 
         <section class="yaml-validation-panel" id="yamlValidationPanel" hidden aria-live="polite">
@@ -160,6 +160,14 @@
           </div>
           <div class="validation-metrics" id="validationMetrics"></div>
           <div class="validation-issues" id="validationIssues"></div>
+        </section>
+
+        <section class="readable-script-panel" id="readableScriptPanel" hidden aria-labelledby="readableScriptTitle">
+          <div class="readable-script-heading">
+            <h3 id="readableScriptTitle">可读剧本</h3>
+            <span id="readableScriptMeta">尚未渲染</span>
+          </div>
+          <textarea id="readableScriptOutput" class="readable-script-output" readonly placeholder="点击“渲染剧本”后，将在这里显示可复制的剧本文本。"></textarea>
         </section>
       </section>
     </main>

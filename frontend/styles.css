@@ -601,6 +601,46 @@ select:focus {
   font-size: 12px;
 }
 
+.partial-render-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.partial-render-controls select {
+  height: 40px;
+  font-size: 13px;
+}
+
+.partial-render-status {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 9px 12px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.partial-render-status.info {
+  background: rgba(255, 252, 246, 0.72);
+  color: #7c746a;
+}
+
+.partial-render-status.success {
+  background: rgba(99, 145, 105, 0.12);
+  color: #3d7045;
+}
+
+.partial-render-status.warning {
+  background: rgba(233, 200, 146, 0.18);
+  color: #866032;
+}
+
+.partial-render-status.error {
+  background: rgba(164, 86, 72, 0.1);
+  color: #8d4f43;
+}
+
 .readable-script-output {
   width: 100%;
   min-height: 180px;
@@ -1134,6 +1174,10 @@ input[type="range"]::-moz-range-thumb {
   .top-actions,
   .output-actions {
     justify-content: stretch;
+  }
+
+  .partial-render-controls {
+    grid-template-columns: 1fr;
   }
 
   .modal-body {

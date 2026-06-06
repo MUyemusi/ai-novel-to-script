@@ -30,6 +30,7 @@ const state = {
   generatedWarnings: [],
   isGeneratingYaml: false,
   isValidatingYaml: false,
+  isPartialRendering: false,
   validationResult: null,
   finalScriptText: "",
   previewModalOpen: false,
@@ -72,6 +73,9 @@ function initApp() {
   elements.readableScriptPanel = document.getElementById("readableScriptPanel");
   elements.readableScriptOutput = document.getElementById("readableScriptOutput");
   elements.readableScriptMeta = document.getElementById("readableScriptMeta");
+  elements.partialRenderTargetSelect = document.getElementById("partialRenderTargetSelect");
+  elements.partialRenderButton = document.getElementById("partialRenderButton");
+  elements.partialRenderStatus = document.getElementById("partialRenderStatus");
   elements.previewScriptButton = document.getElementById("previewScriptButton");
   elements.scriptPreviewModal = document.getElementById("scriptPreviewModal");
   elements.finalScriptTextarea = document.getElementById("finalScriptTextarea");
@@ -107,6 +111,8 @@ function initApp() {
   elements.validateYamlButton.addEventListener("click", validateCurrentYaml);
   elements.downloadYamlButton.addEventListener("click", downloadCurrentYaml);
   elements.renderScriptButton.addEventListener("click", renderReadableScript);
+  elements.partialRenderTargetSelect.addEventListener("change", updateActionButtons);
+  elements.partialRenderButton.addEventListener("click", renderPartialActOrScene);
   elements.previewScriptButton.addEventListener("click", openScriptPreviewModal);
   elements.closeScriptPreviewButton.addEventListener("click", closeScriptPreviewModal);
   elements.cancelScriptPreviewButton.addEventListener("click", closeScriptPreviewModal);
@@ -399,6 +405,7 @@ function resetYamlResults() {
   state.generatedWarnings = [];
   state.isGeneratingYaml = false;
   state.isValidatingYaml = false;
+  state.isPartialRendering = false;
   state.validationResult = null;
   elements.yamlOutput.value = "";
   elements.scriptSummary.hidden = true;
@@ -598,6 +605,7 @@ function renderReadableScript() {
     elements.readableScriptOutput.value = renderedText;
     elements.readableScriptPanel.hidden = false;
     elements.readableScriptMeta.textContent = `${renderedText.split("\n").length} 行`;
+    renderPartialRenderTargets(screenplay);
     renderYamlMessage("可读剧本已渲染，可直接复制。", "success");
     updateActionButtons();
   } catch (error) {
@@ -605,6 +613,94 @@ function renderReadableScript() {
     elements.readableScriptOutput.value = `渲染失败：${error.message || "YAML 解析失败，请先校验 YAML。"}`;
     elements.readableScriptMeta.textContent = "渲染失败";
     renderYamlMessage("YAML 渲染失败，请检查格式或先点击校验。", "error");
+  }
+}
+
+async function renderPartialActOrScene() {
+  if (state.isPartialRendering) {
+    return;
+  }
+
+  const target = parsePartialRenderTarget(elements.partialRenderTargetSelect.value);
+  if (!target) {
+    renderPartialRenderStatus("请先选择要重渲染的幕或场。", "warning");
+    return;
+  }
+
+  const currentData = parseCurrentScreenplayYaml();
+  if (!currentData) {
+    renderPartialRenderStatus("请先生成有效 YAML，并点击“渲染剧本”。", "warning");
+    return;
+  }
+
+  const acts = getActs(currentData.screenplay);
+  if (!acts[target.actIndex] || (target.type === "scene" && !acts[target.actIndex].scenes?.[target.sceneIndex])) {
+    renderPartialRenderStatus("选择的幕或场不存在，请重新渲染可读剧本后再试。", "warning");
+    return;
+  }
+  const sourceText = buildPartialRenderSourceText(currentData.screenplay, target);
+  const targetLabel = formatPartialTargetLabel(currentData.screenplay, target);
+  if (!window.confirm(`确认局部重渲染“${targetLabel}”？未选择的部分会保持不变。`)) {
+    return;
+  }
+
+  state.isPartialRendering = true;
+  elements.partialRenderButton.textContent = "重渲染中...";
+  renderPartialRenderStatus(`正在局部重渲染：${targetLabel}`, "info");
+  updateActionButtons();
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/script/generate`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        text: sourceText,
+        adaptation_profile: buildAdaptationProfileRequest(),
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.detail || "局部重渲染失败");
+    }
+
+    const generatedData = parseSimpleYaml(data.yaml || "");
+    const generatedScreenplay = generatedData && generatedData.screenplay;
+    const generatedActs = getActs(generatedScreenplay);
+    if (!generatedActs.length) {
+      throw new Error("局部重渲染未返回可用幕内容。");
+    }
+
+    const beforeReadableText = buildReadableScriptText(currentData.screenplay);
+    const replacement = buildPartialReplacement(acts, generatedActs, target);
+    applyPartialReplacement(acts, target, replacement);
+    refreshQualityReport(currentData.screenplay);
+
+    const updatedReadableText = buildReadableScriptText(currentData.screenplay);
+    const updatedYamlText = stringifyYaml(currentData.data);
+    elements.yamlOutput.value = updatedYamlText;
+    state.generatedYaml = updatedYamlText;
+    elements.readableScriptOutput.value = updatedReadableText;
+    elements.readableScriptPanel.hidden = false;
+    elements.readableScriptMeta.textContent = `${updatedReadableText.split("\n").length} 行`;
+    renderPartialRenderTargets(currentData.screenplay, elements.partialRenderTargetSelect.value);
+
+    const finalScriptSynced = updateFinalScriptAfterPartialRender(beforeReadableText, updatedReadableText, target);
+    resetYamlValidation();
+    if (finalScriptSynced === false) {
+      renderPartialRenderStatus(`局部重渲染完成：${targetLabel}；最终稿未自动同步，请手动检查稿纸预览。`, "warning");
+    } else {
+      renderPartialRenderStatus(`局部重渲染完成：${targetLabel}`, "success");
+    }
+    renderYamlMessage(`局部重渲染完成：${targetLabel}`, "success");
+  } catch (error) {
+    renderPartialRenderStatus(error.message || "局部重渲染失败，请检查后端服务。", "error");
+    renderYamlMessage("局部重渲染失败，请检查所选内容和后端服务。", "error");
+  } finally {
+    state.isPartialRendering = false;
+    elements.partialRenderButton.textContent = "局部重渲染";
+    updateActionButtons();
   }
 }
 
@@ -694,6 +790,264 @@ function normalizeCharacterNames(characters) {
       return "";
     })
     .filter(Boolean);
+}
+
+function renderPartialRenderTargets(screenplay, selectedValue = "") {
+  const acts = getActs(screenplay);
+  const options = ['<option value="">选择要重渲染的幕或场</option>'];
+
+  acts.forEach((act, actIndex) => {
+    const actTitle = escapeHtml(stringifyValue(act.title || act.act_id) || `第${actIndex + 1}幕`);
+    options.push(`<option value="act:${actIndex}">第${actIndex + 1}幕：${actTitle}</option>`);
+
+    const scenes = Array.isArray(act.scenes) ? act.scenes : [];
+    scenes.forEach((scene, sceneIndex) => {
+      const sceneTitle = escapeHtml(stringifyValue(scene.title || scene.scene_id) || `场景${sceneIndex + 1}`);
+      options.push(`<option value="scene:${actIndex}:${sceneIndex}">第${actIndex + 1}幕 / 场景${sceneIndex + 1}：${sceneTitle}</option>`);
+    });
+  });
+
+  elements.partialRenderTargetSelect.innerHTML = options.join("");
+  if (selectedValue && elements.partialRenderTargetSelect.querySelector(`option[value="${selectedValue}"]`)) {
+    elements.partialRenderTargetSelect.value = selectedValue;
+  }
+  renderPartialRenderStatus("选择幕或场后，可仅重渲染该部分。", "info", true);
+}
+
+function renderPartialRenderStatus(message, type = "info", hidden = false) {
+  elements.partialRenderStatus.textContent = message;
+  elements.partialRenderStatus.className = `partial-render-status ${type}`;
+  elements.partialRenderStatus.hidden = hidden;
+}
+
+function parsePartialRenderTarget(value) {
+  if (!value) {
+    return null;
+  }
+  const parts = value.split(":");
+  if (parts[0] === "act" && parts.length === 2) {
+    return {
+      type: "act",
+      actIndex: Number(parts[1]),
+    };
+  }
+  if (parts[0] === "scene" && parts.length === 3) {
+    return {
+      type: "scene",
+      actIndex: Number(parts[1]),
+      sceneIndex: Number(parts[2]),
+    };
+  }
+  return null;
+}
+
+function parseCurrentScreenplayYaml() {
+  try {
+    const data = parseSimpleYaml(getCurrentYaml());
+    const screenplay = data && data.screenplay;
+    if (!screenplay || typeof screenplay !== "object") {
+      return null;
+    }
+    return { data, screenplay };
+  } catch (error) {
+    return null;
+  }
+}
+
+function getActs(screenplay) {
+  return screenplay && Array.isArray(screenplay.acts) ? screenplay.acts : [];
+}
+
+function buildPartialRenderSourceText(screenplay, target) {
+  const label = formatPartialTargetLabel(screenplay, target);
+  const selectedText = extractPartialReadableSection(buildReadableScriptText(screenplay), target) || label;
+  return [
+    `第1章 ${label} 重渲染素材`,
+    selectedText,
+    `第2章 ${label} 对白与动作补写`,
+    selectedText,
+    `第3章 ${label} 结构整理`,
+    selectedText,
+  ].join("\n\n");
+}
+
+function formatPartialTargetLabel(screenplay, target) {
+  const acts = getActs(screenplay);
+  const act = acts[target.actIndex] || {};
+  const actTitle = stringifyValue(act.title || act.act_id) || `第${target.actIndex + 1}幕`;
+  if (target.type === "act") {
+    return `第${target.actIndex + 1}幕：${actTitle}`;
+  }
+
+  const scenes = Array.isArray(act.scenes) ? act.scenes : [];
+  const scene = scenes[target.sceneIndex] || {};
+  const sceneTitle = stringifyValue(scene.title || scene.scene_id) || `场景${target.sceneIndex + 1}`;
+  return `第${target.actIndex + 1}幕 / 场景${target.sceneIndex + 1}：${sceneTitle}`;
+}
+
+function buildPartialReplacement(currentActs, generatedActs, target) {
+  const generatedAct = generatedActs[0];
+  if (target.type === "act") {
+    const originalAct = currentActs[target.actIndex] || {};
+    return {
+      ...generatedAct,
+      act_id: originalAct.act_id || generatedAct.act_id,
+      title: originalAct.title || generatedAct.title,
+    };
+  }
+
+  const originalScene = currentActs[target.actIndex]?.scenes?.[target.sceneIndex] || {};
+  const generatedScene = generatedAct.scenes && generatedAct.scenes[0];
+  if (!generatedScene) {
+    throw new Error("局部重渲染未返回可用场景内容。");
+  }
+  return {
+    ...generatedScene,
+    scene_id: originalScene.scene_id || generatedScene.scene_id,
+    title: originalScene.title || generatedScene.title,
+    source_chapter_id: originalScene.source_chapter_id || generatedScene.source_chapter_id,
+  };
+}
+
+function applyPartialReplacement(acts, target, replacement) {
+  if (target.type === "act") {
+    acts[target.actIndex] = replacement;
+    return;
+  }
+
+  if (!Array.isArray(acts[target.actIndex].scenes)) {
+    acts[target.actIndex].scenes = [];
+  }
+  acts[target.actIndex].scenes[target.sceneIndex] = replacement;
+}
+
+function refreshQualityReport(screenplay) {
+  if (!screenplay || typeof screenplay !== "object") {
+    return;
+  }
+
+  const acts = getActs(screenplay);
+  const scenes = acts.flatMap((act) => (Array.isArray(act.scenes) ? act.scenes : []));
+  const coveredChapters = new Set(
+    scenes
+      .map((scene) => stringifyValue(scene.source_chapter_id))
+      .filter(Boolean),
+  );
+  const chapterCount = Number(screenplay.source_novel?.chapter_count || screenplay.quality_report?.chapter_count || coveredChapters.size || 0);
+  const characterCount = Array.isArray(screenplay.characters) ? screenplay.characters.length : 0;
+  const coverageRate = chapterCount > 0 ? Math.min(coveredChapters.size / chapterCount, 1) : 0;
+
+  screenplay.quality_report = {
+    ...(screenplay.quality_report || {}),
+    chapter_count: chapterCount,
+    scene_count: scenes.length,
+    character_count: characterCount,
+    chapter_coverage_rate: Number(coverageRate.toFixed(2)),
+  };
+}
+
+function updateFinalScriptAfterPartialRender(beforeReadableText, updatedReadableText, target) {
+  if (!state.finalScriptText.trim()) {
+    return true;
+  }
+
+  const previousSection = extractPartialReadableSection(beforeReadableText, target);
+  const nextSection = extractPartialReadableSection(updatedReadableText, target);
+  const replacedText = replacePartialSectionByHeading(
+    state.finalScriptText,
+    previousSection,
+    nextSection,
+    target,
+  );
+
+  if (replacedText !== null) {
+    state.finalScriptText = replacedText;
+    elements.finalScriptStatus.textContent = "最终稿对应片段已随局部重渲染更新。";
+    elements.finalScriptStatus.className = "final-script-status success";
+  } else {
+    elements.finalScriptStatus.textContent = "局部重渲染已完成，但未能在最终稿中定位对应片段；最终稿未被覆盖，请手动同步。";
+    elements.finalScriptStatus.className = "final-script-status warning";
+    renderPartialRenderStatus("局部重渲染已完成；最终稿未自动同步，请手动检查稿纸预览。", "warning");
+  }
+
+  if (!elements.scriptPreviewModal.hidden) {
+    elements.finalScriptTextarea.value = state.finalScriptText;
+  }
+  return replacedText !== null;
+}
+
+function replacePartialSectionByHeading(finalText, previousSection, nextSection, target) {
+  if (!previousSection || !nextSection) {
+    return null;
+  }
+
+  if (finalText.includes(previousSection)) {
+    return finalText.replace(previousSection, nextSection);
+  }
+
+  const lines = finalText.split("\n");
+  const startIndex = findPartialSectionStart(lines, target);
+  if (startIndex === -1) {
+    return null;
+  }
+
+  const endIndex = findPartialSectionEnd(lines, target, startIndex);
+  return [
+    ...lines.slice(0, startIndex),
+    ...nextSection.split("\n"),
+    ...lines.slice(endIndex),
+  ].join("\n");
+}
+
+function extractPartialReadableSection(readableText, target) {
+  const lines = readableText.split("\n");
+  const startIndex = findPartialSectionStart(lines, target);
+  if (startIndex === -1) {
+    return "";
+  }
+  const endIndex = findPartialSectionEnd(lines, target, startIndex);
+  return lines.slice(startIndex, endIndex).join("\n").trimEnd();
+}
+
+function findPartialSectionStart(lines, target) {
+  const actHeading = `第${target.actIndex + 1}幕：`;
+  const actIndex = lines.findIndex((line) => line.startsWith(actHeading));
+  if (target.type === "act" || actIndex === -1) {
+    return actIndex;
+  }
+
+  const sceneHeading = `  场景${target.sceneIndex + 1}：`;
+  for (let index = actIndex + 1; index < lines.length; index += 1) {
+    if (lines[index].startsWith(`第${target.actIndex + 2}幕：`)) {
+      break;
+    }
+    if (lines[index].startsWith(sceneHeading)) {
+      return index;
+    }
+  }
+  return -1;
+}
+
+function findPartialSectionEnd(lines, target, startIndex) {
+  if (target.type === "act") {
+    for (let index = startIndex + 1; index < lines.length; index += 1) {
+      if (/^第\d+幕：/.test(lines[index])) {
+        return trimTrailingBlankLine(lines, index);
+      }
+    }
+    return lines.length;
+  }
+
+  for (let index = startIndex + 1; index < lines.length; index += 1) {
+    if (/^第\d+幕：/.test(lines[index]) || /^  场景\d+：/.test(lines[index])) {
+      return trimTrailingBlankLine(lines, index);
+    }
+  }
+  return lines.length;
+}
+
+function trimTrailingBlankLine(lines, endIndex) {
+  return endIndex > 0 && lines[endIndex - 1] === "" ? endIndex - 1 : endIndex;
 }
 
 function openScriptPreviewModal() {
@@ -1055,6 +1409,8 @@ function resetReadableScript() {
   elements.readableScriptPanel.hidden = true;
   elements.readableScriptOutput.value = "";
   elements.readableScriptMeta.textContent = "尚未渲染";
+  elements.partialRenderTargetSelect.innerHTML = '<option value="">选择要重渲染的幕或场</option>';
+  renderPartialRenderStatus("选择幕或场后，可仅重渲染该部分。", "info", true);
 }
 
 function resetFinalScriptText(message = "") {
@@ -1076,6 +1432,10 @@ function updateActionButtons() {
   const canValidateYaml = hasYaml && !state.isValidatingYaml;
   const hasFinalScript = Boolean(state.finalScriptText.trim());
   const canOpenPreview = hasYaml || Boolean(state.finalScriptText.trim() || getReadableScriptText().trim());
+  const canPartialRender = hasYaml
+    && Boolean(getReadableScriptText().trim())
+    && Boolean(elements.partialRenderTargetSelect.value)
+    && !state.isPartialRendering;
 
   elements.parseChaptersBtn.classList.toggle("ready", hasText);
   elements.generateYamlBtn.classList.toggle("ready", canGenerateYaml);
@@ -1094,6 +1454,11 @@ function updateActionButtons() {
   elements.renderScriptButton.classList.toggle("disabled-action", !hasYaml);
   elements.renderScriptButton.disabled = !hasYaml;
   elements.renderScriptButton.setAttribute("aria-disabled", String(!hasYaml));
+  elements.partialRenderTargetSelect.disabled = !hasYaml || !getReadableScriptText().trim() || state.isPartialRendering;
+  elements.partialRenderButton.classList.toggle("ready", canPartialRender);
+  elements.partialRenderButton.classList.toggle("disabled-action", !canPartialRender);
+  elements.partialRenderButton.disabled = !canPartialRender;
+  elements.partialRenderButton.setAttribute("aria-disabled", String(!canPartialRender));
   elements.previewScriptButton.classList.toggle("ready", canOpenPreview);
   elements.previewScriptButton.classList.toggle("disabled-action", !canOpenPreview);
   elements.previewScriptButton.disabled = !canOpenPreview;
@@ -1300,6 +1665,92 @@ function stringifyValue(value) {
     return "";
   }
   return String(value).trim();
+}
+
+function stringifyYaml(value, indent = 0) {
+  if (Array.isArray(value)) {
+    return stringifyYamlArray(value, indent);
+  }
+  if (value && typeof value === "object") {
+    return stringifyYamlObject(value, indent);
+  }
+  return `${" ".repeat(indent)}${formatYamlScalar(value)}`;
+}
+
+function stringifyYamlObject(objectValue, indent = 0) {
+  const spaces = " ".repeat(indent);
+  return Object.entries(objectValue)
+    .map(([key, value]) => {
+      if (Array.isArray(value)) {
+        if (!value.length) {
+          return `${spaces}${key}: []`;
+        }
+        return `${spaces}${key}:\n${stringifyYamlArray(value, indent + 2)}`;
+      }
+      if (value && typeof value === "object") {
+        return `${spaces}${key}:\n${stringifyYamlObject(value, indent + 2)}`;
+      }
+      return `${spaces}${key}: ${formatYamlScalar(value)}`;
+    })
+    .join("\n");
+}
+
+function stringifyYamlArray(arrayValue, indent = 0) {
+  const spaces = " ".repeat(indent);
+  return arrayValue
+    .map((item) => {
+      if (item && typeof item === "object" && !Array.isArray(item)) {
+        const entries = Object.entries(item);
+        if (!entries.length) {
+          return `${spaces}- {}`;
+        }
+
+        const [firstKey, firstValue] = entries[0];
+        const firstLine = formatYamlListObjectFirstLine(firstKey, firstValue, indent);
+        const restLines = entries
+          .slice(1)
+          .map(([key, value]) => stringifyYamlObject({ [key]: value }, indent + 2))
+          .join("\n");
+        return restLines ? `${firstLine}\n${restLines}` : firstLine;
+      }
+      if (Array.isArray(item)) {
+        return `${spaces}-\n${stringifyYamlArray(item, indent + 2)}`;
+      }
+      return `${spaces}- ${formatYamlScalar(item)}`;
+    })
+    .join("\n");
+}
+
+function formatYamlListObjectFirstLine(key, value, indent) {
+  const spaces = " ".repeat(indent);
+  if (Array.isArray(value)) {
+    if (!value.length) {
+      return `${spaces}- ${key}: []`;
+    }
+    return `${spaces}- ${key}:\n${stringifyYamlArray(value, indent + 2)}`;
+  }
+  if (value && typeof value === "object") {
+    return `${spaces}- ${key}:\n${stringifyYamlObject(value, indent + 2)}`;
+  }
+  return `${spaces}- ${key}: ${formatYamlScalar(value)}`;
+}
+
+function formatYamlScalar(value) {
+  if (value === null || value === undefined) {
+    return '""';
+  }
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+
+  const text = String(value);
+  if (!text) {
+    return '""';
+  }
+  if (/^[A-Za-z0-9_\-./]+$/.test(text)) {
+    return text;
+  }
+  return JSON.stringify(text);
 }
 
 function updateTextStats() {

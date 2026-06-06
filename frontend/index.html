@@ -167,6 +167,13 @@
             <h3 id="readableScriptTitle">可读剧本</h3>
             <span id="readableScriptMeta">尚未渲染</span>
           </div>
+          <div class="partial-render-controls">
+            <select id="partialRenderTargetSelect" aria-label="选择局部重渲染范围">
+              <option value="">选择要重渲染的幕或场</option>
+            </select>
+            <button type="button" class="btn secondary disabled-action" id="partialRenderButton" aria-disabled="true" disabled>局部重渲染</button>
+          </div>
+          <div class="partial-render-status info" id="partialRenderStatus" hidden>选择幕或场后，可仅重渲染该部分。</div>
           <textarea id="readableScriptOutput" class="readable-script-output" readonly placeholder="点击“渲染剧本”后，将在这里显示可复制的剧本文本。"></textarea>
         </section>
       </section>

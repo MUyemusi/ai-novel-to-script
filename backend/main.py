@@ -15,12 +15,18 @@ try:
         LLMGenerationError,
         build_script_structure_with_llm,
     )
+    from backend.services.llm_result_normalizer import normalize_llm_script_structure
+    from backend.services.llm_result_validator import (
+        validate_normalized_script_structure,
+    )
     from backend.services.script_generator import build_script_structure
     from backend.services.style_options import get_script_styles
 except ModuleNotFoundError:
     from config import get_llm_settings
     from services.chapter_parser import split_chapters, validate_min_chapters
     from services.llm_client import LLMGenerationError, build_script_structure_with_llm
+    from services.llm_result_normalizer import normalize_llm_script_structure
+    from services.llm_result_validator import validate_normalized_script_structure
     from services.script_generator import build_script_structure
     from services.style_options import get_script_styles
 
@@ -143,13 +149,25 @@ def generate_script(request: ScriptGenerateRequest) -> dict:
 
     if settings.use_llm:
         try:
-            script_structure = build_script_structure_with_llm(
+            raw_script_structure = build_script_structure_with_llm(
                 chapters,
                 adaptation_profile=request.adaptation_profile,
             )
-            script_structure = _normalize_script_structure(script_structure)
+            script_structure, normalize_warnings = normalize_llm_script_structure(
+                raw_script_structure,
+                chapters=chapters,
+            )
+            is_valid, validation_errors = validate_normalized_script_structure(
+                script_structure
+            )
+            if not is_valid:
+                raise LLMGenerationError(
+                    "Normalized LLM output is invalid: "
+                    + "; ".join(validation_errors)
+                )
+            warnings.extend(normalize_warnings)
             generation_mode = "llm"
-        except LLMGenerationError:
+        except (LLMGenerationError, ValueError):
             try:
                 script_structure = build_script_structure(
                     text,
@@ -159,7 +177,7 @@ def generate_script(request: ScriptGenerateRequest) -> dict:
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
             generation_mode = "rule_fallback"
             warnings.append(
-                "AI generation failed; automatically used rule-based generation fallback."
+                "AI generation result was unusable; automatically used rule-based generation fallback."
             )
     else:
         try:
@@ -191,52 +209,6 @@ def generate_script(request: ScriptGenerateRequest) -> dict:
         "warnings": warnings,
         "message": "剧本 YAML 生成成功。",
     }
-
-
-def _normalize_script_structure(script_structure: dict) -> dict:
-    required_screenplay_fields = {
-        "meta",
-        "adaptation_settings",
-        "source_novel",
-        "characters",
-        "acts",
-        "quality_report",
-    }
-    required_quality_fields = {
-        "chapter_count",
-        "scene_count",
-        "character_count",
-        "chapter_coverage_rate",
-    }
-
-    screenplay = script_structure.get("screenplay")
-    if isinstance(screenplay, dict):
-        normalized = script_structure
-    elif required_screenplay_fields.issubset(script_structure):
-        screenplay = script_structure
-        normalized = {"screenplay": screenplay}
-    else:
-        raise LLMGenerationError("LLM response did not match screenplay structure.")
-
-    missing_screenplay_fields = required_screenplay_fields - set(screenplay)
-    if missing_screenplay_fields:
-        raise LLMGenerationError("LLM response did not match screenplay structure.")
-
-    if not isinstance(screenplay.get("characters"), list):
-        raise LLMGenerationError("LLM response characters must be a list.")
-
-    if not isinstance(screenplay.get("acts"), list):
-        raise LLMGenerationError("LLM response acts must be a list.")
-
-    quality_report = screenplay.get("quality_report")
-    if not isinstance(quality_report, dict):
-        raise LLMGenerationError("LLM response quality_report must be an object.")
-
-    missing_quality_fields = required_quality_fields - set(quality_report)
-    if missing_quality_fields:
-        raise LLMGenerationError("LLM response quality_report was incomplete.")
-
-    return normalized
 
 
 def _build_chapter_response(

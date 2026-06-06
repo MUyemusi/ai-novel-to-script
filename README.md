@@ -23,8 +23,12 @@ AI 小说转剧本工具是一个比赛 Demo 项目，面向小说作者，目�
 - 章节解析接口 `POST /api/chapters/parse`
 - 示例小说接口 `GET /api/examples/novel`
 - 剧本风格配置接口 `GET /api/script/styles`
+- 剧本 YAML 生成接口 `POST /api/script/generate`
 - 前端小说输入区：支持文本粘贴、txt 上传、一键加载示例、清空文本和字数统计
 - 前端章节识别：调用章节解析接口并展示章节数、3 章要求状态和章节卡片
+- 前端 YAML 结果展示、summary 统计和人物表展示
+- 可选 LLM 生成：支持 `generation_mode` 为 `rule`、`llm`、`rule_fallback`
+- PR14：LLM 输出结构规范化与基础校验，轻微不规范结构会自动修复并返回 `warnings`
 - 前端静态页面骨架
 
 ## 项目结构
@@ -208,6 +212,14 @@ Set `USE_LLM=true` and provide `LLM_API_KEY` to prefer the OpenAI-compatible Cha
 - `rule_fallback`: LLM generation failed and the backend used the rule generator
 
 The response also includes `warnings`, while preserving `yaml`, `summary`, and `characters` for the existing frontend display.
+
+## PR14: LLM output normalization and basic validation
+
+PR14 adds a backend normalization layer for LLM-generated screenplay structures before YAML conversion. If the model returns a slightly irregular but repairable structure, the backend fills missing fields, normalizes characters/acts/scenes/dialogues, recalculates summary statistics, and returns `generation_mode="llm"` with repair notes in `warnings`.
+
+If the normalized result is still unusable, the backend automatically falls back to the rule-based generator and returns `generation_mode="rule_fallback"`.
+
+This is only a lightweight structural normalizer and basic validator. It is not the full YAML Schema validation feature, and it does not add YAML download, Word/PDF export, or screenplay document preview. Those capabilities remain planned for later PRs.
 
 ## 文档位置
 

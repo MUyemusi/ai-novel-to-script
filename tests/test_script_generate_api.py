@@ -125,10 +125,72 @@ def test_generate_script_falls_back_when_llm_returns_incomplete_structure(monkey
     assert data["summary"]["chapter_count"] == 3
 
 
+def test_generate_script_repairs_minor_llm_structure_issues(monkeypatch):
+    def fake_repairable_llm(*args, **kwargs):
+        return {
+            "data": {
+                "characters": {"Lin": "lead"},
+                "acts": [
+                    {
+                        "scenes": [
+                            {
+                                "summary": "A repaired scene.",
+                                "dialogue": "A repaired line.",
+                            }
+                        ]
+                    }
+                ],
+            }
+        }
+
+    monkeypatch.setenv("USE_LLM", "true")
+    monkeypatch.setenv("LLM_API_KEY", "test-api-key")
+    monkeypatch.setattr(
+        main_module,
+        "build_script_structure_with_llm",
+        fake_repairable_llm,
+    )
+
+    response = client.post(
+        "/api/script/generate",
+        json={"text": THREE_CHAPTER_NOVEL},
+    )
+    data = response.json()
+    parsed_yaml = yaml.safe_load(data["yaml"])
+
+    assert response.status_code == 200
+    assert data["generation_mode"] == "llm"
+    assert data["warnings"]
+    assert data["summary"]["scene_count"] == 1
+    assert parsed_yaml["screenplay"]["characters"][0]["name"] == "Lin"
+
+
+def test_generate_script_falls_back_when_llm_returns_empty_dict(monkeypatch):
+    def fake_invalid_llm(*args, **kwargs):
+        return {}
+
+    monkeypatch.setenv("USE_LLM", "true")
+    monkeypatch.setenv("LLM_API_KEY", "test-api-key")
+    monkeypatch.setattr(main_module, "build_script_structure_with_llm", fake_invalid_llm)
+
+    response = client.post(
+        "/api/script/generate",
+        json={"text": THREE_CHAPTER_NOVEL},
+    )
+    data = response.json()
+
+    assert response.status_code == 200
+    assert data["generation_mode"] == "rule_fallback"
+    assert data["warnings"]
+    assert yaml.safe_load(data["yaml"])
+
+
 def test_generate_script_uses_llm_mode_when_llm_succeeds(monkeypatch):
     def fake_llm(chapters, adaptation_profile=None, style=None):
         return {
             "screenplay": {
+                "title": "LLM draft",
+                "type": "screenplay",
                 "meta": {
                     "title": "LLM draft",
                     "version": "0.1.0",
@@ -173,6 +235,8 @@ def test_generate_script_uses_llm_mode_when_llm_succeeds(monkeypatch):
                                 "source_chapter_id": chapter["chapter_id"],
                                 "conflict": "truth emerges",
                                 "summary": "A concise scene summary.",
+                                "actions": ["The scene moves the mystery forward."],
+                                "dialogues": [],
                                 "beats": [
                                     {
                                         "type": "action",
@@ -188,7 +252,7 @@ def test_generate_script_uses_llm_mode_when_llm_succeeds(monkeypatch):
                     "chapter_count": len(chapters),
                     "scene_count": len(chapters),
                     "character_count": 1,
-                    "chapter_coverage_rate": "100%",
+                    "chapter_coverage_rate": 1.0,
                     "covered_chapters": [
                         chapter["chapter_id"] for chapter in chapters
                     ],

@@ -136,12 +136,37 @@
       <div class="panel-heading">
         <div>
           <p class="section-kicker">Output</p>
-          <h2 id="yamlTitle">YAML 与校验</h2>
+          <h2 id="yamlTitle">YAML 生成结果</h2>
         </div>
-        <span class="validation-badge">未生成</span>
+        <span class="validation-badge" id="yamlStatusBadge">未生成</span>
       </div>
-      <p class="muted">生成 YAML、Schema 校验和下载功能将在后续 PR 中开放。</p>
-      <textarea class="yaml-output" readonly disabled placeholder="YAML 输出占位"></textarea>
+      <div class="yaml-message info" id="yamlMessage">识别至少 3 章后可生成 YAML。</div>
+
+      <div class="script-summary" id="scriptSummary" hidden>
+        <div class="summary-item">
+          <span>章节数</span>
+          <strong id="summaryChapterCount">0</strong>
+        </div>
+        <div class="summary-item">
+          <span>场景数</span>
+          <strong id="summarySceneCount">0</strong>
+        </div>
+        <div class="summary-item">
+          <span>人物数</span>
+          <strong id="summaryCharacterCount">0</strong>
+        </div>
+        <div class="summary-item">
+          <span>覆盖率</span>
+          <strong id="summaryCoverageRate">-</strong>
+        </div>
+      </div>
+
+      <div class="characters-table" id="charactersTable" hidden>
+        <h3>人物表</h3>
+        <div id="charactersList"></div>
+      </div>
+
+      <textarea id="yamlOutput" class="yaml-output" readonly placeholder="YAML 输出将在这里显示"></textarea>
     </section>
   </main>
 

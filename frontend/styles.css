@@ -380,6 +380,114 @@ select {
   line-height: 1.6;
 }
 
+.yaml-output:not(:placeholder-shown) {
+  color: #243447;
+  font-family: Consolas, "Courier New", monospace;
+  font-size: 13px;
+}
+
+.yaml-message {
+  border-radius: 6px;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  line-height: 1.5;
+}
+
+.yaml-message.info {
+  background: #edf3f8;
+  color: #31577d;
+}
+
+.yaml-message.success {
+  background: #eaf7ee;
+  color: #28623b;
+}
+
+.yaml-message.warning {
+  background: #fff5df;
+  color: #7a560e;
+}
+
+.yaml-message.error {
+  background: #fdecec;
+  color: #9c2f2f;
+}
+
+.script-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.script-summary[hidden],
+.characters-table[hidden] {
+  display: none;
+}
+
+.summary-item {
+  border: 1px solid #d7dee7;
+  border-radius: 8px;
+  background: #f8fafc;
+  padding: 12px;
+}
+
+.summary-item span {
+  display: block;
+  color: #647386;
+  font-size: 12px;
+}
+
+.summary-item strong {
+  display: block;
+  margin-top: 4px;
+  color: #243447;
+  font-size: 20px;
+}
+
+.characters-table {
+  margin-bottom: 14px;
+}
+
+.characters-table h3 {
+  margin: 0 0 10px;
+  color: #243447;
+  font-size: 17px;
+}
+
+.character-row {
+  border: 1px solid #d7dee7;
+  border-radius: 8px;
+  background: #ffffff;
+  padding: 12px;
+}
+
+.character-row + .character-row {
+  margin-top: 8px;
+}
+
+.character-row div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+
+.character-row strong {
+  color: #243447;
+}
+
+.character-row span,
+.character-row p {
+  color: #647386;
+  font-size: 13px;
+}
+
+.character-row p {
+  margin: 4px 0 0;
+  line-height: 1.5;
+}
+
 .modal-backdrop {
   position: fixed;
   inset: 0;

@@ -43,7 +43,7 @@
 
       <nav class="top-actions" aria-label="顶部操作">
         <button type="button" class="btn secondary" id="topLoadExampleBtn">加载示例</button>
-        <button type="button" class="btn disabled-action" id="previewScriptBtn" aria-disabled="true" disabled>预览最终剧本</button>
+        <button type="button" class="btn disabled-action" id="previewScriptButton" aria-disabled="true" disabled>稿纸预览</button>
       </nav>
     </header>
 
@@ -173,21 +173,20 @@
     </main>
   </div>
 
-  <div class="modal-backdrop" id="previewModal" hidden>
-    <div class="script-paper" role="dialog" aria-modal="true" aria-labelledby="previewTitle">
-      <button type="button" class="modal-close" id="closePreviewBtn" aria-label="关闭预览">×</button>
+  <div class="modal-backdrop" id="scriptPreviewModal" hidden>
+    <div class="script-paper final-script-paper" role="dialog" aria-modal="true" aria-labelledby="scriptPreviewTitle">
+      <button type="button" class="modal-close" id="closeScriptPreviewButton" aria-label="关闭稿纸预览">×</button>
       <div class="modal-header">
         <p class="section-kicker">Preview</p>
-        <h2 id="previewTitle">最终剧本预览</h2>
+        <h2 id="scriptPreviewTitle">稿纸预览</h2>
       </div>
-      <div class="modal-body">
-        <h3 class="script-title" id="previewScriptName">《剧本预览》</h3>
-        <p class="muted" id="previewDescription">生成 YAML 后，可在这里查看最终剧本预览样式。</p>
+      <div class="modal-body final-script-body">
+        <textarea id="finalScriptTextarea" class="final-script-textarea" placeholder="可在这里编辑最终剧本文本。"></textarea>
+        <p class="final-script-status" id="finalScriptStatus">编辑后点击“确认最终剧本”，保存为后续 Word 导出的文本来源。</p>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn ghost" id="modalResetBtn">重置</button>
-        <button type="button" class="btn secondary" disabled aria-disabled="true">下载 Word</button>
-        <button type="button" class="btn secondary" disabled aria-disabled="true">下载 PDF</button>
+        <button type="button" class="btn ghost" id="cancelScriptPreviewButton">关闭</button>
+        <button type="button" class="btn primary" id="confirmFinalScriptButton">确认最终剧本</button>
       </div>
     </div>
   </div>

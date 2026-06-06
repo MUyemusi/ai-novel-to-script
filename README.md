@@ -29,11 +29,13 @@ AI 小说转剧本工具是一个比赛 Demo 项目，面向小说作者，目�
 - 前端 YAML 结果展示、summary 统计和人物表展示
 - 前端 YAML 校验与 `screenplay.yaml` 下载
 - 前端可读剧本渲染：将当前 YAML 渲染为可复制的 Acts → Scenes → Characters → Dialogue 文本
+- 前端稿纸预览与最终剧本确认：可在弹窗内编辑并确认最终文本
 - 可选 LLM 生成：支持 `generation_mode` 为 `rule`、`llm`、`rule_fallback`
 - PR14：LLM 输出结构规范化与基础校验，轻微不规范结构会自动修复并返回 `warnings`
 - PR15：后端 YAML Schema 校验 API `POST /api/yaml/validate`
 - PR16：前端接入“校验 YAML”和“下载 YAML”按钮
 - PR17：前端接入“渲染剧本”按钮
+- PR18：前端接入“稿纸预览”和“确认最终剧本”弹窗
 - 前端静态页面骨架
 
 ## 项目结构
@@ -191,6 +193,7 @@ uvicorn main:app --reload
 - 点击“校验 YAML”会调用 `POST /api/yaml/validate`，并展示 `valid`、`status`、`errors`、`warnings` 和重新计算的 `summary`。
 - 点击“下载 YAML”会把当前 YAML 编辑区内容保存为 `screenplay.yaml`。
 - 点击“渲染剧本”会把当前 YAML 渲染为可复制的可读剧本文本。每次手动修改 YAML 后，可再次点击该按钮刷新渲染结果。
+- 点击“稿纸预览”会打开可编辑弹窗。弹窗优先载入已确认的最终剧本；如果还没有确认文本，则载入当前可读剧本文本。编辑后点击“确认最终剧本”会把文本保存到前端状态，作为后续 Word 导出的来源。关闭弹窗不会修改 YAML，也不会保存未确认的修改。
 
 校验结果示例：
 
@@ -311,6 +314,14 @@ Acts -> Scenes -> Characters -> Dialogue
 ```
 
 The renderer shows `source_chapter_id` in act and scene headings, displays placeholders such as `暂无场景`、`暂无角色`、`暂无对白` for empty fields, and keeps long output scrollable. PR17 does not change YAML validation or download behavior, and it does not add paper preview, Word/PDF export, local re-rendering, database, or login features.
+
+## PR18: Frontend paper preview and final script confirmation
+
+PR18 adds a frontend-only `稿纸预览` modal. The modal loads the confirmed final script text first; if no final text has been confirmed, it uses the current readable script rendered by PR17.
+
+Inside the modal, users can edit the final script text and click `确认最终剧本` to save it into frontend state as the future Word export source. Closing the modal does not save unconfirmed edits and never changes the YAML textarea.
+
+PR18 does not add Word/PDF export, local re-rendering, backend APIs, database, login, or API key exposure.
 
 ## 文档位置
 

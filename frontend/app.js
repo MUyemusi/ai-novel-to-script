@@ -30,6 +30,7 @@ const state = {
   validationResult: null,
   previewReady: false,
   previewModalOpen: false,
+  structureModalOpen: false,
   adaptationProfile: {
     tone_style: "现实",
     medium: "影视剧",
@@ -49,6 +50,7 @@ function initApp() {
   elements.inputStatus = document.getElementById("inputStatus");
   elements.txtUpload = document.getElementById("txtUpload");
   elements.parseChaptersBtn = document.getElementById("parseChaptersBtn");
+  elements.openStructureBtn = document.getElementById("openStructureBtn");
   elements.generateYamlBtn = document.getElementById("generateYamlBtn");
   elements.chapterCount = document.getElementById("chapterCount");
   elements.chapterRequirement = document.getElementById("chapterRequirement");
@@ -65,7 +67,19 @@ function initApp() {
   elements.summaryCoverageRate = document.getElementById("summaryCoverageRate");
   elements.charactersTable = document.getElementById("charactersTable");
   elements.charactersList = document.getElementById("charactersList");
+  elements.charactersEmptyState = document.getElementById("charactersEmptyState");
+  elements.summaryEmptyState = document.getElementById("summaryEmptyState");
   elements.previewModal = document.getElementById("previewModal");
+  elements.structureModal = document.getElementById("structureModal");
+  elements.previewScriptName = document.getElementById("previewScriptName");
+  elements.previewDescription = document.getElementById("previewDescription");
+  elements.progressSteps = Array.from(document.querySelectorAll(".progress-step"));
+  elements.structureTabs = Array.from(document.querySelectorAll(".structure-tab"));
+  elements.structureViews = {
+    chapters: document.getElementById("chaptersView"),
+    characters: document.getElementById("charactersView"),
+    summary: document.getElementById("summaryView"),
+  };
   
   // Adaptation profile elements
   elements.toneSelect = document.getElementById("toneSelect");
@@ -83,13 +97,21 @@ function initApp() {
   document.getElementById("panelLoadExampleBtn").addEventListener("click", loadExampleNovel);
   document.getElementById("clearTextBtn").addEventListener("click", clearNovelText);
   document.getElementById("generateYamlBtn").addEventListener("click", generateYaml);
+  document.getElementById("openStructureBtn").addEventListener("click", openStructureModal);
   document.getElementById("cleanScriptBtn").addEventListener("click", () => showComingSoon("清洗渲染剧本"));
-  document.getElementById("previewScriptBtn").addEventListener("click", () => showComingSoon("最终剧本预览"));
+  document.getElementById("previewScriptBtn").addEventListener("click", openPreviewModal);
   document.getElementById("closePreviewBtn").addEventListener("click", closePreviewModal);
+  document.getElementById("closeStructureBtn").addEventListener("click", closeStructureModal);
+  document.getElementById("modalResetBtn").addEventListener("click", closePreviewModal);
+  elements.previewModal.addEventListener("click", handleModalBackdropClick);
+  elements.structureModal.addEventListener("click", handleStructureModalBackdropClick);
 
   elements.parseChaptersBtn.addEventListener("click", parseChapters);
   elements.novelInput.addEventListener("input", handleTextInput);
   elements.txtUpload.addEventListener("change", handleTxtUpload);
+  elements.structureTabs.forEach((tab) => {
+    tab.addEventListener("click", () => switchStructureTab(tab.dataset.structureTab));
+  });
   
   // Adaptation profile event listeners
   elements.toneSelect.addEventListener("change", handleAdaptationInputChange);
@@ -105,6 +127,7 @@ function initApp() {
   showStatus("等待输入小说文本", "info");
   loadAndRenderStyleOptions();
   checkBackendStylesApi();
+  switchStructureTab("chapters");
   console.log("AI 小说转剧本工具前端已初始化。");
 }
 
@@ -112,6 +135,7 @@ function handleTextInput() {
   state.rawNovelText = elements.novelInput.value;
   resetChapterResults();
   resetYamlResults();
+  switchStructureTab("chapters");
   const count = updateTextStats();
   if (count > 0) {
     showStatus(`已输入 ${count} 字`, "success");
@@ -140,6 +164,7 @@ function handleTxtUpload(event) {
     state.rawNovelText = elements.novelInput.value;
     resetChapterResults();
     resetYamlResults();
+    switchStructureTab("chapters");
     updateTextStats();
     updateActionButtons();
     showStatus("TXT 文件读取成功", "success");
@@ -162,6 +187,7 @@ async function loadExampleNovel() {
     state.rawNovelText = elements.novelInput.value;
     resetChapterResults();
     resetYamlResults();
+    switchStructureTab("chapters");
     updateTextStats();
     updateActionButtons();
     showStatus("示例小说加载成功", "success");
@@ -178,6 +204,8 @@ function clearNovelText() {
   updateTextStats();
   resetChapterResults();
   resetYamlResults();
+  closeStructureModal();
+  switchStructureTab("chapters");
   updateActionButtons();
   showStatus("已清空输入内容", "info");
 }
@@ -193,10 +221,12 @@ async function parseChapters() {
       statusType: "warning",
     });
     renderChapterCards([]);
+    switchStructureTab("chapters");
     return;
   }
 
   resetYamlResults();
+  switchStructureTab("chapters");
   showStatus("正在识别章节……", "info");
   renderChapterSummary({
     chapter_count: 0,
@@ -234,6 +264,7 @@ async function parseChapters() {
       statusType: "error",
     });
     renderChapterCards([]);
+    switchStructureTab("chapters");
     updateActionButtons();
     showStatus("章节识别失败，请确认后端服务已启动。", "error");
   }
@@ -349,6 +380,7 @@ function resetChapterResults() {
     statusType: "info",
   });
   renderChapterCards([]);
+  closeStructureModal();
 }
 
 function resetYamlResults() {
@@ -360,7 +392,12 @@ function resetYamlResults() {
   elements.scriptSummary.hidden = true;
   elements.charactersTable.hidden = true;
   elements.charactersList.innerHTML = "";
+  elements.charactersEmptyState.hidden = false;
   elements.yamlStatusBadge.textContent = "未生成";
+  elements.summaryEmptyState.hidden = false;
+  elements.previewScriptName.textContent = "《剧本预览》";
+  elements.previewDescription.textContent = "生成 YAML 后，可在这里查看最终剧本预览样式。";
+  closePreviewModal();
   renderYamlMessage("识别至少 3 章后可生成 YAML。", "info");
 }
 
@@ -386,6 +423,7 @@ function renderYamlResult(data) {
   renderYamlMessage(data.message || "剧本 YAML 生成成功。", "success");
   renderScriptSummary(data.summary || {});
   renderCharacters(data.characters || []);
+  switchStructureTab(data.characters?.length ? "characters" : "summary");
 }
 
 function renderScriptSummary(summary) {
@@ -394,12 +432,14 @@ function renderScriptSummary(summary) {
   elements.summaryCharacterCount.textContent = String(summary.character_count || 0);
   elements.summaryCoverageRate.textContent = summary.chapter_coverage_rate || "-";
   elements.scriptSummary.hidden = false;
+  elements.summaryEmptyState.hidden = true;
 }
 
 function renderCharacters(characters) {
   if (!characters.length) {
     elements.charactersTable.hidden = true;
     elements.charactersList.innerHTML = "";
+    elements.charactersEmptyState.hidden = false;
     return;
   }
 
@@ -423,6 +463,7 @@ function renderCharacters(characters) {
     })
     .join("");
   elements.charactersTable.hidden = false;
+  elements.charactersEmptyState.hidden = true;
 }
 
 function renderYamlMessage(message, type = "info") {
@@ -441,14 +482,27 @@ function renderYamlError(message) {
 
 function updateActionButtons() {
   const hasText = state.rawNovelText.trim().length > 0;
+  const hasStructure = state.chapters.length > 0;
   const hasEnoughChapters = state.chapters.length >= 3;
   const canGenerateYaml = hasEnoughChapters && !state.isGeneratingYaml;
+  const hasYaml = Boolean(state.generatedYaml);
 
   elements.parseChaptersBtn.classList.toggle("ready", hasText);
+  elements.openStructureBtn.classList.toggle("ready", hasStructure);
+  elements.openStructureBtn.classList.toggle("disabled-action", !hasStructure);
+  elements.openStructureBtn.disabled = !hasStructure;
+  elements.openStructureBtn.setAttribute("aria-disabled", String(!hasStructure));
   elements.generateYamlBtn.classList.toggle("ready", canGenerateYaml);
   elements.generateYamlBtn.classList.toggle("disabled-action", !canGenerateYaml);
   elements.generateYamlBtn.disabled = !canGenerateYaml;
   elements.generateYamlBtn.setAttribute("aria-disabled", String(!canGenerateYaml));
+  document.getElementById("cleanScriptBtn").classList.toggle("disabled-action", !hasYaml);
+  document.getElementById("cleanScriptBtn").disabled = !hasYaml;
+  document.getElementById("cleanScriptBtn").setAttribute("aria-disabled", String(!hasYaml));
+  document.getElementById("previewScriptBtn").classList.toggle("disabled-action", !hasYaml);
+  document.getElementById("previewScriptBtn").disabled = !hasYaml;
+  document.getElementById("previewScriptBtn").setAttribute("aria-disabled", String(!hasYaml));
+  updateProgressStep();
 }
 
 function updateTextStats() {
@@ -478,6 +532,50 @@ function escapeHtml(value) {
 function closePreviewModal() {
   state.previewModalOpen = false;
   elements.previewModal.hidden = true;
+  updateProgressStep();
+}
+
+function closeStructureModal() {
+  state.structureModalOpen = false;
+  elements.structureModal.hidden = true;
+}
+
+function openPreviewModal() {
+  if (!state.generatedYaml) {
+    showStatus("生成 YAML 后才能预览最终剧本。", "warning");
+    return;
+  }
+
+  const previewTitle = state.generatedSummary?.title || "剧本预览";
+  const sceneCount = state.generatedSummary?.scene_count || 0;
+  const characterCount = state.generatedSummary?.character_count || 0;
+  elements.previewScriptName.textContent = `《${previewTitle}》`;
+  elements.previewDescription.textContent = `当前已生成 ${sceneCount} 个场景、${characterCount} 位人物的结构稿。最终剧本排版将在后续 PR 中继续完善。`;
+  state.previewModalOpen = true;
+  elements.previewModal.hidden = false;
+  updateProgressStep();
+}
+
+function handleModalBackdropClick(event) {
+  if (event.target === elements.previewModal) {
+    closePreviewModal();
+  }
+}
+
+function openStructureModal() {
+  if (!state.chapters.length) {
+    showStatus("识别章节成功后才能查看结构预览。", "warning");
+    return;
+  }
+
+  state.structureModalOpen = true;
+  elements.structureModal.hidden = false;
+}
+
+function handleStructureModalBackdropClick(event) {
+  if (event.target === elements.structureModal) {
+    closeStructureModal();
+  }
 }
 
 async function loadAndRenderStyleOptions() {
@@ -583,6 +681,46 @@ function checkBackendStylesApi() {
       elements.backendStatus.className = "backend-status error";
       elements.backendStatus.textContent = "后端风格配置接口不可用。";
     });
+}
+
+function switchStructureTab(tabName) {
+  elements.structureTabs.forEach((tab) => {
+    const isActive = tab.dataset.structureTab === tabName;
+    tab.classList.toggle("active", isActive);
+    tab.setAttribute("aria-selected", String(isActive));
+  });
+
+  Object.entries(elements.structureViews).forEach(([viewName, view]) => {
+    const isActive = viewName === tabName;
+    view.hidden = !isActive;
+    view.classList.toggle("active", isActive);
+  });
+}
+
+function updateProgressStep() {
+  const activeStep = getActiveStep();
+
+  elements.progressSteps.forEach((step) => {
+    const stepIndex = parseInt(step.dataset.step, 10);
+    step.classList.toggle("active", stepIndex === activeStep);
+    step.classList.toggle("is-complete", stepIndex < activeStep);
+  });
+}
+
+function getActiveStep() {
+  if (state.previewModalOpen) {
+    return 5;
+  }
+
+  if (state.generatedYaml) {
+    return 3;
+  }
+
+  if (state.rawNovelText.trim().length > 0 || state.chapters.length > 0) {
+    return 2;
+  }
+
+  return 1;
 }
 
 document.addEventListener("DOMContentLoaded", initApp);

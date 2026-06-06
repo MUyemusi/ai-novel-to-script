@@ -1,7 +1,7 @@
 """FastAPI backend entry for AI 小说转剧本工具."""
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Dict, Optional
 
 import yaml
 from fastapi import FastAPI, HTTPException
@@ -45,7 +45,7 @@ class ChapterParseRequest(BaseModel):
 
 class ScriptGenerateRequest(BaseModel):
     text: str
-    adaptation_profile: dict[str, Any] | None = None
+    adaptation_profile: Optional[Dict[str, Any]] = None
 
 
 @app.get("/health")

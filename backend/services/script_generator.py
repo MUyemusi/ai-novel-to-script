@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from copy import deepcopy
-from typing import Any
+from typing import Any, Optional
 
 try:
     from backend.services.chapter_parser import split_chapters, validate_min_chapters
@@ -23,7 +23,7 @@ PLACEHOLDER_CHARACTER = {
 
 def build_script_structure(
     text: str,
-    adaptation_profile: dict | None = None,
+    adaptation_profile: Optional[dict] = None,
 ) -> dict:
     """Convert novel text and adaptation settings into MVP screenplay data."""
     if not text or not text.strip():

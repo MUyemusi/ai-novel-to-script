@@ -945,6 +945,11 @@ input[type="range"]::-moz-range-thumb {
   max-height: 82vh;
 }
 
+.final-script-paper {
+  width: min(980px, 100%);
+  max-height: 86vh;
+}
+
 .modal-close {
   position: absolute;
   top: 22px;
@@ -973,6 +978,54 @@ input[type="range"]::-moz-range-thumb {
   max-height: calc(78vh - 184px);
   overflow: auto;
   padding: 36px 110px;
+}
+
+.final-script-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  max-height: calc(86vh - 188px);
+  padding: 30px 36px;
+}
+
+.final-script-textarea {
+  width: 100%;
+  min-height: 48vh;
+  max-height: 58vh;
+  overflow: auto;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.78), rgba(255, 255, 255, 0.78)),
+    repeating-linear-gradient(
+      to bottom,
+      transparent 0,
+      transparent 31px,
+      rgba(190, 146, 80, 0.2) 32px
+    );
+  color: var(--text);
+  padding: 22px 24px;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  font-size: 14px;
+  line-height: 32px;
+}
+
+.final-script-textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px rgba(190, 146, 80, 0.14);
+}
+
+.final-script-status {
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.final-script-status.success {
+  color: #3d7045;
+  font-weight: 700;
 }
 
 .structure-modal-body {
@@ -1083,5 +1136,13 @@ input[type="range"]::-moz-range-thumb {
 
   .structure-modal-body {
     padding: 20px;
+  }
+
+  .final-script-body {
+    padding: 20px;
+  }
+
+  .final-script-textarea {
+    min-height: 42vh;
   }
 }

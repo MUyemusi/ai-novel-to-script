@@ -31,7 +31,8 @@ const state = {
   isGeneratingYaml: false,
   isValidatingYaml: false,
   validationResult: null,
-  previewReady: false,
+  finalScriptText: "",
+  previewModalOpen: false,
   adaptationProfile: {
     tone_style: "现实",
     medium: "影视剧",
@@ -71,6 +72,13 @@ function initApp() {
   elements.readableScriptPanel = document.getElementById("readableScriptPanel");
   elements.readableScriptOutput = document.getElementById("readableScriptOutput");
   elements.readableScriptMeta = document.getElementById("readableScriptMeta");
+  elements.previewScriptButton = document.getElementById("previewScriptButton");
+  elements.scriptPreviewModal = document.getElementById("scriptPreviewModal");
+  elements.finalScriptTextarea = document.getElementById("finalScriptTextarea");
+  elements.finalScriptStatus = document.getElementById("finalScriptStatus");
+  elements.closeScriptPreviewButton = document.getElementById("closeScriptPreviewButton");
+  elements.cancelScriptPreviewButton = document.getElementById("cancelScriptPreviewButton");
+  elements.confirmFinalScriptButton = document.getElementById("confirmFinalScriptButton");
   elements.scriptSummary = document.getElementById("scriptSummary");
   elements.summaryChapterCount = document.getElementById("summaryChapterCount");
   elements.summarySceneCount = document.getElementById("summarySceneCount");
@@ -98,7 +106,11 @@ function initApp() {
   elements.validateYamlButton.addEventListener("click", validateCurrentYaml);
   elements.downloadYamlButton.addEventListener("click", downloadCurrentYaml);
   elements.renderScriptButton.addEventListener("click", renderReadableScript);
-  document.getElementById("previewScriptBtn").addEventListener("click", () => showComingSoon("最终剧本预览"));
+  elements.previewScriptButton.addEventListener("click", openScriptPreviewModal);
+  elements.closeScriptPreviewButton.addEventListener("click", closeScriptPreviewModal);
+  elements.cancelScriptPreviewButton.addEventListener("click", closeScriptPreviewModal);
+  elements.confirmFinalScriptButton.addEventListener("click", confirmFinalScript);
+  document.addEventListener("keydown", handleGlobalKeydown);
 
   elements.parseChaptersBtn.addEventListener("click", parseChapters);
   elements.novelInput.addEventListener("input", handleTextInput);
@@ -139,6 +151,7 @@ function handleYamlInput() {
   state.generatedYaml = getCurrentYaml();
   resetYamlValidation();
   resetReadableScript();
+  resetFinalScriptText("YAML 已修改，最终稿已清空。请重新渲染并确认最终剧本。");
   updateActionButtons();
 }
 
@@ -393,6 +406,7 @@ function resetYamlResults() {
   elements.validateYamlButton.textContent = "校验 YAML";
   resetYamlValidation();
   resetReadableScript();
+  resetFinalScriptText();
   renderYamlMessage("识别至少 3 章后可生成 YAML。", "info");
 }
 
@@ -417,9 +431,14 @@ function renderYamlResult(data) {
   state.validationResult = null;
   resetYamlValidation();
   resetReadableScript();
+  resetFinalScriptText("已生成新的 YAML，最终稿已清空。请重新渲染并确认最终剧本。");
   const warnings = data.warnings || [];
   const modeLabel = formatGenerationMode(data.generation_mode, warnings);
-  const messageParts = [modeLabel, data.message || "剧本 YAML 生成成功。"].concat(warnings);
+  const messageParts = [
+    modeLabel,
+    data.message || "剧本 YAML 生成成功。",
+    "最终稿已清空，请重新渲染并确认最终剧本。",
+  ].concat(warnings);
 
   elements.yamlStatusBadge.textContent = modeLabel || "已生成";
   renderYamlMessage(
@@ -493,6 +512,7 @@ function renderYamlError(message) {
   state.validationResult = null;
   resetYamlValidation();
   resetReadableScript();
+  resetFinalScriptText();
   elements.scriptSummary.hidden = true;
   elements.charactersTable.hidden = true;
   elements.charactersList.innerHTML = "";
@@ -584,6 +604,7 @@ function renderReadableScript() {
     elements.readableScriptPanel.hidden = false;
     elements.readableScriptMeta.textContent = `${renderedText.split("\n").length} 行`;
     renderYamlMessage("可读剧本已渲染，可直接复制。", "success");
+    updateActionButtons();
   } catch (error) {
     elements.readableScriptPanel.hidden = false;
     elements.readableScriptOutput.value = `渲染失败：${error.message || "YAML 解析失败，请先校验 YAML。"}`;
@@ -678,6 +699,46 @@ function normalizeCharacterNames(characters) {
       return "";
     })
     .filter(Boolean);
+}
+
+function openScriptPreviewModal() {
+  const sourceText = state.finalScriptText || getReadableScriptText();
+  if (!sourceText.trim()) {
+    renderYamlMessage("请先点击“渲染剧本”，再打开稿纸预览。", "warning");
+    return;
+  }
+
+  elements.finalScriptTextarea.value = sourceText;
+  elements.finalScriptStatus.textContent = state.finalScriptText
+    ? "已载入上次确认的最终剧本，可继续编辑。"
+    : "已载入当前可读剧本文本，可编辑后确认最终剧本。";
+  elements.finalScriptStatus.className = "final-script-status";
+  elements.scriptPreviewModal.hidden = false;
+  state.previewModalOpen = true;
+  elements.finalScriptTextarea.focus();
+}
+
+function closeScriptPreviewModal() {
+  elements.scriptPreviewModal.hidden = true;
+  state.previewModalOpen = false;
+}
+
+function confirmFinalScript() {
+  state.finalScriptText = elements.finalScriptTextarea.value;
+  elements.finalScriptStatus.textContent = "最终剧本已确认，可用于后续 Word 导出。";
+  elements.finalScriptStatus.className = "final-script-status success";
+  renderYamlMessage("最终剧本已确认，可用于后续 Word 导出。", "success");
+  updateActionButtons();
+}
+
+function handleGlobalKeydown(event) {
+  if (event.key === "Escape" && state.previewModalOpen) {
+    closeScriptPreviewModal();
+  }
+}
+
+function getReadableScriptText() {
+  return elements.readableScriptOutput ? elements.readableScriptOutput.value : "";
 }
 
 function renderYamlValidationResult(result) {
@@ -788,12 +849,24 @@ function resetReadableScript() {
   elements.readableScriptMeta.textContent = "尚未渲染";
 }
 
+function resetFinalScriptText(message = "") {
+  state.finalScriptText = "";
+  if (elements.finalScriptTextarea) {
+    elements.finalScriptTextarea.value = "";
+  }
+  if (elements.finalScriptStatus) {
+    elements.finalScriptStatus.textContent = message || "编辑后点击“确认最终剧本”，保存为后续 Word 导出的文本来源。";
+    elements.finalScriptStatus.className = "final-script-status";
+  }
+}
+
 function updateActionButtons() {
   const hasText = state.rawNovelText.trim().length > 0;
   const hasEnoughChapters = state.chapters.length >= 3;
   const canGenerateYaml = hasEnoughChapters && !state.isGeneratingYaml;
   const hasYaml = Boolean(getCurrentYaml().trim());
   const canValidateYaml = hasYaml && !state.isValidatingYaml;
+  const canOpenPreview = hasYaml || Boolean(state.finalScriptText.trim() || getReadableScriptText().trim());
 
   elements.parseChaptersBtn.classList.toggle("ready", hasText);
   elements.generateYamlBtn.classList.toggle("ready", canGenerateYaml);
@@ -812,9 +885,10 @@ function updateActionButtons() {
   elements.renderScriptButton.classList.toggle("disabled-action", !hasYaml);
   elements.renderScriptButton.disabled = !hasYaml;
   elements.renderScriptButton.setAttribute("aria-disabled", String(!hasYaml));
-  document.getElementById("previewScriptBtn").classList.toggle("disabled-action", !hasYaml);
-  document.getElementById("previewScriptBtn").disabled = !hasYaml;
-  document.getElementById("previewScriptBtn").setAttribute("aria-disabled", String(!hasYaml));
+  elements.previewScriptButton.classList.toggle("ready", canOpenPreview);
+  elements.previewScriptButton.classList.toggle("disabled-action", !canOpenPreview);
+  elements.previewScriptButton.disabled = !canOpenPreview;
+  elements.previewScriptButton.setAttribute("aria-disabled", String(!canOpenPreview));
 }
 
 function getCurrentYaml() {

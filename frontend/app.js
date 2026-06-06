@@ -29,6 +29,7 @@ const state = {
   generatedMode: "",
   generatedWarnings: [],
   isGeneratingYaml: false,
+  isValidatingYaml: false,
   validationResult: null,
   previewReady: false,
   adaptationProfile: {
@@ -59,6 +60,13 @@ function initApp() {
   elements.yamlOutput = document.getElementById("yamlOutput");
   elements.yamlMessage = document.getElementById("yamlMessage");
   elements.yamlStatusBadge = document.getElementById("yamlStatusBadge");
+  elements.validateYamlButton = document.getElementById("validateYamlButton");
+  elements.downloadYamlButton = document.getElementById("downloadYamlButton");
+  elements.yamlValidationPanel = document.getElementById("yamlValidationPanel");
+  elements.validationStatusText = document.getElementById("validationStatusText");
+  elements.validationValidBadge = document.getElementById("validationValidBadge");
+  elements.validationMetrics = document.getElementById("validationMetrics");
+  elements.validationIssues = document.getElementById("validationIssues");
   elements.scriptSummary = document.getElementById("scriptSummary");
   elements.summaryChapterCount = document.getElementById("summaryChapterCount");
   elements.summarySceneCount = document.getElementById("summarySceneCount");
@@ -83,11 +91,14 @@ function initApp() {
   document.getElementById("panelLoadExampleBtn").addEventListener("click", loadExampleNovel);
   document.getElementById("clearTextBtn").addEventListener("click", clearNovelText);
   document.getElementById("generateYamlBtn").addEventListener("click", generateYaml);
+  elements.validateYamlButton.addEventListener("click", validateCurrentYaml);
+  elements.downloadYamlButton.addEventListener("click", downloadCurrentYaml);
   document.getElementById("cleanScriptBtn").addEventListener("click", () => showComingSoon("清洗渲染剧本"));
   document.getElementById("previewScriptBtn").addEventListener("click", () => showComingSoon("最终剧本预览"));
 
   elements.parseChaptersBtn.addEventListener("click", parseChapters);
   elements.novelInput.addEventListener("input", handleTextInput);
+  elements.yamlOutput.addEventListener("input", handleYamlInput);
   elements.txtUpload.addEventListener("change", handleTxtUpload);
   
   // Adaptation profile event listeners
@@ -117,6 +128,12 @@ function handleTextInput() {
   } else {
     showStatus("等待输入小说文本", "info");
   }
+  updateActionButtons();
+}
+
+function handleYamlInput() {
+  state.generatedYaml = getCurrentYaml();
+  resetYamlValidation();
   updateActionButtons();
 }
 
@@ -361,11 +378,15 @@ function resetYamlResults() {
   state.generatedMode = "";
   state.generatedWarnings = [];
   state.isGeneratingYaml = false;
+  state.isValidatingYaml = false;
+  state.validationResult = null;
   elements.yamlOutput.value = "";
   elements.scriptSummary.hidden = true;
   elements.charactersTable.hidden = true;
   elements.charactersList.innerHTML = "";
   elements.yamlStatusBadge.textContent = "未生成";
+  elements.validateYamlButton.textContent = "校验 YAML";
+  resetYamlValidation();
   renderYamlMessage("识别至少 3 章后可生成 YAML。", "info");
 }
 
@@ -387,6 +408,8 @@ function buildAdaptationProfileRequest() {
 
 function renderYamlResult(data) {
   elements.yamlOutput.value = data.yaml || "";
+  state.validationResult = null;
+  resetYamlValidation();
   const warnings = data.warnings || [];
   const modeLabel = formatGenerationMode(data.generation_mode, warnings);
   const messageParts = [modeLabel, data.message || "剧本 YAML 生成成功。"].concat(warnings);
@@ -460,6 +483,8 @@ function renderYamlMessage(message, type = "info") {
 
 function renderYamlError(message) {
   elements.yamlOutput.value = "";
+  state.validationResult = null;
+  resetYamlValidation();
   elements.scriptSummary.hidden = true;
   elements.charactersTable.hidden = true;
   elements.charactersList.innerHTML = "";
@@ -467,23 +492,207 @@ function renderYamlError(message) {
   renderYamlMessage(message, "error");
 }
 
+async function validateCurrentYaml() {
+  if (state.isValidatingYaml) {
+    return;
+  }
+
+  const yamlText = getCurrentYaml();
+  if (!yamlText.trim()) {
+    renderYamlMessage("请先生成或输入 YAML 后再校验。", "warning");
+    resetYamlValidation();
+    return;
+  }
+
+  state.isValidatingYaml = true;
+  elements.validateYamlButton.textContent = "校验中...";
+  updateActionButtons();
+  renderYamlMessage("正在校验 YAML...", "info");
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/yaml/validate`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ yaml: yamlText }),
+    });
+    const result = await response.json();
+    if (!response.ok) {
+      throw new Error(result.detail || "YAML 校验请求失败");
+    }
+
+    state.validationResult = result;
+    renderYamlValidationResult(result);
+    const messageType = result.status === "error" ? "error" : result.status === "warning" ? "warning" : "success";
+    renderYamlMessage(`YAML 校验完成：${formatValidationStatus(result.status)}`, messageType);
+  } catch (error) {
+    state.validationResult = null;
+    renderYamlValidationError(error.message || "YAML 校验失败，请确认后端服务已启动。");
+    renderYamlMessage("YAML 校验失败，请检查后端服务。", "error");
+  } finally {
+    state.isValidatingYaml = false;
+    elements.validateYamlButton.textContent = "校验 YAML";
+    updateActionButtons();
+  }
+}
+
+function downloadCurrentYaml() {
+  const yamlText = getCurrentYaml();
+  if (!yamlText.trim()) {
+    renderYamlMessage("请先生成或输入 YAML 后再下载。", "warning");
+    return;
+  }
+
+  const blob = new Blob([yamlText], { type: "application/x-yaml;charset=utf-8" });
+  const downloadUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = downloadUrl;
+  link.download = "screenplay.yaml";
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(downloadUrl);
+  renderYamlMessage("YAML 文件已准备下载。", "success");
+}
+
+function renderYamlValidationResult(result) {
+  elements.yamlValidationPanel.hidden = false;
+  elements.validationStatusText.textContent = `状态：${formatValidationStatus(result.status)}`;
+  elements.validationValidBadge.textContent = result.valid ? "valid=True" : "valid=False";
+  elements.validationValidBadge.className = `validation-badge ${result.valid ? "success" : "error"}`;
+  elements.validationMetrics.innerHTML = renderValidationMetrics(result.summary || {});
+  elements.validationIssues.innerHTML = renderValidationIssues(result.errors || [], result.warnings || []);
+}
+
+function renderValidationMetrics(summary) {
+  const coverage = typeof summary.chapter_coverage_rate === "number"
+    ? `${Math.round(summary.chapter_coverage_rate * 100)}%`
+    : "-";
+  const metrics = [
+    ["章节数", summary.chapter_count || 0],
+    ["场景数", summary.scene_count || 0],
+    ["人物数", summary.character_count || 0],
+    ["章节覆盖率", coverage],
+  ];
+
+  return metrics
+    .map(([label, value]) => `
+      <div class="validation-metric">
+        <span>${escapeHtml(label)}</span>
+        <strong>${escapeHtml(value)}</strong>
+      </div>
+    `)
+    .join("");
+}
+
+function renderValidationIssues(errors, warnings) {
+  const issueGroups = [
+    ["错误", "error", errors],
+    ["警告", "warning", warnings],
+  ];
+
+  return issueGroups
+    .map(([title, type, issues]) => {
+      if (!issues.length) {
+        return `
+          <div class="validation-issue-group ${type}">
+            <h3>${title}</h3>
+            <p class="validation-empty">无</p>
+          </div>
+        `;
+      }
+
+      const items = issues
+        .map((issue) => `
+          <li>
+            <code>${escapeHtml(issue.path || "(root)")}</code>
+            <span>${escapeHtml(issue.message || "")}</span>
+          </li>
+        `)
+        .join("");
+
+      return `
+        <div class="validation-issue-group ${type}">
+          <h3>${title}</h3>
+          <ul>${items}</ul>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+function renderYamlValidationError(message) {
+  elements.yamlValidationPanel.hidden = false;
+  elements.validationStatusText.textContent = "状态：请求失败";
+  elements.validationValidBadge.textContent = "valid=False";
+  elements.validationValidBadge.className = "validation-badge error";
+  elements.validationMetrics.innerHTML = "";
+  elements.validationIssues.innerHTML = `
+    <div class="validation-issue-group error">
+      <h3>错误</h3>
+      <ul>
+        <li>
+          <code>request</code>
+          <span>${escapeHtml(message)}</span>
+        </li>
+      </ul>
+    </div>
+  `;
+}
+
+function resetYamlValidation() {
+  if (!elements.yamlValidationPanel) {
+    return;
+  }
+
+  elements.yamlValidationPanel.hidden = true;
+  elements.validationStatusText.textContent = "尚未校验";
+  elements.validationValidBadge.textContent = "-";
+  elements.validationValidBadge.className = "validation-badge";
+  elements.validationMetrics.innerHTML = "";
+  elements.validationIssues.innerHTML = "";
+}
+
 function updateActionButtons() {
   const hasText = state.rawNovelText.trim().length > 0;
   const hasEnoughChapters = state.chapters.length >= 3;
   const canGenerateYaml = hasEnoughChapters && !state.isGeneratingYaml;
-  const hasYaml = Boolean(state.generatedYaml);
+  const hasYaml = Boolean(getCurrentYaml().trim());
+  const canValidateYaml = hasYaml && !state.isValidatingYaml;
 
   elements.parseChaptersBtn.classList.toggle("ready", hasText);
   elements.generateYamlBtn.classList.toggle("ready", canGenerateYaml);
   elements.generateYamlBtn.classList.toggle("disabled-action", !canGenerateYaml);
   elements.generateYamlBtn.disabled = !canGenerateYaml;
   elements.generateYamlBtn.setAttribute("aria-disabled", String(!canGenerateYaml));
+  elements.validateYamlButton.classList.toggle("ready", canValidateYaml);
+  elements.validateYamlButton.classList.toggle("disabled-action", !canValidateYaml);
+  elements.validateYamlButton.disabled = !canValidateYaml;
+  elements.validateYamlButton.setAttribute("aria-disabled", String(!canValidateYaml));
+  elements.downloadYamlButton.classList.toggle("ready", hasYaml);
+  elements.downloadYamlButton.classList.toggle("disabled-action", !hasYaml);
+  elements.downloadYamlButton.disabled = !hasYaml;
+  elements.downloadYamlButton.setAttribute("aria-disabled", String(!hasYaml));
   document.getElementById("cleanScriptBtn").classList.toggle("disabled-action", !hasYaml);
   document.getElementById("cleanScriptBtn").disabled = !hasYaml;
   document.getElementById("cleanScriptBtn").setAttribute("aria-disabled", String(!hasYaml));
   document.getElementById("previewScriptBtn").classList.toggle("disabled-action", !hasYaml);
   document.getElementById("previewScriptBtn").disabled = !hasYaml;
   document.getElementById("previewScriptBtn").setAttribute("aria-disabled", String(!hasYaml));
+}
+
+function getCurrentYaml() {
+  return elements.yamlOutput ? elements.yamlOutput.value : state.generatedYaml;
+}
+
+function formatValidationStatus(status) {
+  const labels = {
+    pass: "通过",
+    warning: "有警告",
+    error: "未通过",
+  };
+  return labels[status] || status || "未知";
 }
 
 function updateTextStats() {

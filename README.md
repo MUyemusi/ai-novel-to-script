@@ -4,7 +4,7 @@
 
 AI 小说转剧本工具是一个比赛 Demo 项目，面向小说作者，目标是将 3 个章节以上的小说文本逐步转换为结构化 YAML 剧本初稿。
 
-当前项目已调整为前后端分离结构：前端使用 HTML、CSS 和原生 JavaScript，后端使用 FastAPI。当前后端已提供健康检查、章节解析、示例小说、风格配置和剧本 YAML 生成接口，并在 PR13 中支持可选的大模型生成；当未配置 API Key 或 USE_LLM=false 时，系统会继续使用规则生成逻辑。Schema 校验、YAML 下载、清洗渲染、Word/PDF 导出仍属于后续计划。
+当前项目已调整为前后端分离结构：前端使用 HTML、CSS 和原生 JavaScript，后端使用 FastAPI。当前后端已提供健康检查、章节解析、示例小说、风格配置、剧本 YAML 生成和 YAML 校验接口，并在 PR13 中支持可选的大模型生成；当未配置 API Key 或 USE_LLM=false 时，系统会继续使用规则生成逻辑。前端已支持 YAML 校验和 YAML 下载。清洗渲染、Word/PDF 导出仍属于后续计划。
 
 ## 当前技术栈
 
@@ -27,8 +27,11 @@ AI 小说转剧本工具是一个比赛 Demo 项目，面向小说作者，目�
 - 前端小说输入区：支持文本粘贴、txt 上传、一键加载示例、清空文本和字数统计
 - 前端章节识别：调用章节解析接口并展示章节数、3 章要求状态和章节卡片
 - 前端 YAML 结果展示、summary 统计和人物表展示
+- 前端 YAML 校验与 `screenplay.yaml` 下载
 - 可选 LLM 生成：支持 `generation_mode` 为 `rule`、`llm`、`rule_fallback`
 - PR14：LLM 输出结构规范化与基础校验，轻微不规范结构会自动修复并返回 `warnings`
+- PR15：后端 YAML Schema 校验 API `POST /api/yaml/validate`
+- PR16：前端接入“校验 YAML”和“下载 YAML”按钮
 - 前端静态页面骨架
 
 ## 项目结构
@@ -181,6 +184,33 @@ uvicorn main:app --reload
 
 输入、上传或加载小说文本后，点击“识别章节”会调用 `POST /api/chapters/parse`，页面会展示章节数、是否满足 3 章要求以及章节标题、摘要预览和正文长度。
 
+生成 YAML 后，可在 YAML 结构区继续操作：
+
+- 点击“校验 YAML”会调用 `POST /api/yaml/validate`，并展示 `valid`、`status`、`errors`、`warnings` 和重新计算的 `summary`。
+- 点击“下载 YAML”会把当前 YAML 编辑区内容保存为 `screenplay.yaml`。
+
+校验结果示例：
+
+```json
+{
+  "valid": true,
+  "status": "warning",
+  "errors": [],
+  "warnings": [
+    {
+      "path": "screenplay.acts",
+      "message": "chapter coverage is below 100%"
+    }
+  ],
+  "summary": {
+    "chapter_count": 3,
+    "scene_count": 2,
+    "character_count": 2,
+    "chapter_coverage_rate": 0.67
+  }
+}
+```
+
 ## 运行测试
 
 在项目根目录执行：
@@ -245,7 +275,16 @@ Response fields:
 - `warnings`: structured quality warnings with `path` and `message`
 - `summary`: recalculated `chapter_count`, `scene_count`, `character_count`, and `chapter_coverage_rate`
 
-This API uses a backend MVP JSON Schema at `backend/schemas/screenplay_schema.json` plus lightweight business-rule checks. PR15 does not add a frontend validation button, YAML download, Word/PDF export, or screenplay document preview; those remain later PR work.
+This API uses a backend MVP JSON Schema at `backend/schemas/screenplay_schema.json` plus lightweight business-rule checks. PR15 does not add a frontend validation button, YAML download, Word/PDF export, or screenplay document preview.
+
+## PR16: Frontend YAML validation and download
+
+PR16 adds frontend controls next to the YAML output area:
+
+- `校验 YAML`: posts the current YAML text to `POST /api/yaml/validate` and renders status, errors, warnings, and summary.
+- `下载 YAML`: downloads the current YAML text as `screenplay.yaml`.
+
+The YAML validation result panel is scrollable so long error and warning lists remain usable. PR16 does not change backend validation rules and does not add script rendering, Word/PDF export, database, login, or API key exposure.
 
 ## 文档位置
 

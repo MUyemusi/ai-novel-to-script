@@ -23,11 +23,27 @@ MEDIUM_OPTIONS = [
 ]
 
 DEFAULT_ADAPTATION_PROFILE = {
-    "tone_style": "现实",
-    "medium": "影视剧",
-    "tone_intensity": 50,
-    "adaptation_degree": 50,
-    "dialogue_preservation_degree": 60,
+    "tone": {
+        "style": "现实",
+        "intensity": 50,
+    },
+    "target": {
+        "medium": "影视剧",
+        "adaptation_degree": 50,
+    },
+    "dialogue": {
+        "preservation_degree": 60,
+    },
+}
+
+DEFAULT_STYLE_FORM_VALUES = {
+    "tone_style": DEFAULT_ADAPTATION_PROFILE["tone"]["style"],
+    "medium": DEFAULT_ADAPTATION_PROFILE["target"]["medium"],
+    "tone_intensity": DEFAULT_ADAPTATION_PROFILE["tone"]["intensity"],
+    "adaptation_degree": DEFAULT_ADAPTATION_PROFILE["target"]["adaptation_degree"],
+    "dialogue_preservation_degree": DEFAULT_ADAPTATION_PROFILE["dialogue"][
+        "preservation_degree"
+    ],
 }
 
 
@@ -36,6 +52,6 @@ def get_script_styles() -> dict:
     return {
         "tone_options": TONE_OPTIONS,
         "medium_options": MEDIUM_OPTIONS,
-        "defaults": DEFAULT_ADAPTATION_PROFILE,
+        "defaults": DEFAULT_STYLE_FORM_VALUES,
         "message": "风格调性选项、适用场景选项和默认参数加载成功。",
     }

@@ -26,6 +26,8 @@ const state = {
   generatedYaml: "",
   generatedSummary: null,
   generatedCharacters: [],
+  generatedMode: "",
+  generatedWarnings: [],
   isGeneratingYaml: false,
   validationResult: null,
   previewReady: false,
@@ -282,12 +284,16 @@ async function generateYaml() {
     state.generatedYaml = data.yaml || "";
     state.generatedSummary = data.summary || null;
     state.generatedCharacters = data.characters || [];
+    state.generatedMode = data.generation_mode || "";
+    state.generatedWarnings = data.warnings || [];
     renderYamlResult(data);
     showStatus(data.message || "剧本 YAML 生成成功。", "success");
   } catch (error) {
     state.generatedYaml = "";
     state.generatedSummary = null;
     state.generatedCharacters = [];
+    state.generatedMode = "";
+    state.generatedWarnings = [];
     renderYamlError(error.message || "剧本 YAML 生成失败，请确认后端服务已启动。");
     showStatus("剧本 YAML 生成失败，请检查文本和后端服务。", "error");
   } finally {
@@ -355,6 +361,8 @@ function resetYamlResults() {
   state.generatedYaml = "";
   state.generatedSummary = null;
   state.generatedCharacters = [];
+  state.generatedMode = "";
+  state.generatedWarnings = [];
   state.isGeneratingYaml = false;
   elements.yamlOutput.value = "";
   elements.scriptSummary.hidden = true;
@@ -382,10 +390,30 @@ function buildAdaptationProfileRequest() {
 
 function renderYamlResult(data) {
   elements.yamlOutput.value = data.yaml || "";
-  elements.yamlStatusBadge.textContent = "已生成";
-  renderYamlMessage(data.message || "剧本 YAML 生成成功。", "success");
+  const modeLabel = formatGenerationMode(data.generation_mode);
+  const warnings = data.warnings || [];
+  const messageParts = [modeLabel, data.message || "剧本 YAML 生成成功。"].concat(warnings);
+
+  elements.yamlStatusBadge.textContent = modeLabel || "已生成";
+  renderYamlMessage(
+    messageParts.filter(Boolean).join(" | "),
+    warnings.length ? "warning" : "success",
+  );
   renderScriptSummary(data.summary || {});
   renderCharacters(data.characters || []);
+}
+
+function formatGenerationMode(mode) {
+  if (mode === "llm") {
+    return "AI 生成";
+  }
+  if (mode === "rule_fallback") {
+    return "AI 失败，已使用规则兜底";
+  }
+  if (mode === "rule") {
+    return "规则生成";
+  }
+  return "";
 }
 
 function renderScriptSummary(summary) {

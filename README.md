@@ -4,7 +4,7 @@
 
 AI 小说转剧本工具是一个比赛 Demo 项目，面向小说作者，目标是将 3 个章节以上的小说文本逐步转换为结构化 YAML 剧本初稿。
 
-当前项目已调整为前后端分离结构：前端使用 HTML、CSS 和原生 JavaScript，后端使用 FastAPI。当前后端已提供健康检查接口和章节解析 API，剧本 YAML 生成、Schema 校验、Word/PDF 导出和 AI API 接入仍属于后续计划。
+当前项目已调整为前后端分离结构：前端使用 HTML、CSS 和原生 JavaScript，后端使用 FastAPI。当前后端已提供健康检查、章节解析、示例小说、风格配置和剧本 YAML 生成接口，并在 PR13 中支持可选的大模型生成；当未配置 API Key 或 USE_LLM=false 时，系统会继续使用规则生成逻辑。Schema 校验、YAML 下载、清洗渲染、Word/PDF 导出仍属于后续计划。
 
 ## 当前技术栈
 
@@ -184,6 +184,30 @@ uvicorn main:app --reload
 ```bash
 python -m pytest
 ```
+
+## PR13: LLM API generation
+
+PR13 adds optional backend-only LLM generation for screenplay structure. The existing rule-based generator remains the default and is still used automatically when LLM generation is disabled, not configured, or fails.
+
+Create a local `.env` file from `.env.example`:
+
+```env
+USE_LLM=false
+LLM_API_KEY=your_api_key_here
+LLM_MODEL=deepseek-chat
+LLM_BASE_URL=https://api.deepseek.com
+LLM_TIMEOUT_SECONDS=60
+```
+
+Set `USE_LLM=true` and provide `LLM_API_KEY` to prefer the OpenAI-compatible Chat Completions API at `{LLM_BASE_URL}/v1/chat/completions`. The API key is read only by the backend and must not be committed to Git. `.env` is ignored by `.gitignore`.
+
+`POST /api/script/generate` now returns `generation_mode`:
+
+- `rule`: rule-based generation
+- `llm`: LLM generation succeeded
+- `rule_fallback`: LLM generation failed and the backend used the rule generator
+
+The response also includes `warnings`, while preserving `yaml`, `summary`, and `characters` for the existing frontend display.
 
 ## 文档位置
 

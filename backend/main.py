@@ -1,16 +1,20 @@
 """FastAPI backend entry for AI 小说转剧本工具."""
 
 from pathlib import Path
+from typing import Any
 
+import yaml
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 try:
     from backend.services.chapter_parser import split_chapters, validate_min_chapters
+    from backend.services.script_generator import build_script_structure
     from backend.services.style_options import get_script_styles
 except ModuleNotFoundError:
     from services.chapter_parser import split_chapters, validate_min_chapters
+    from services.script_generator import build_script_structure
     from services.style_options import get_script_styles
 
 
@@ -37,6 +41,11 @@ EXAMPLE_NOVEL_SOURCE = "examples/sample_novel.txt"
 
 class ChapterParseRequest(BaseModel):
     text: str
+
+
+class ScriptGenerateRequest(BaseModel):
+    text: str
+    adaptation_profile: dict[str, Any] | None = None
 
 
 @app.get("/health")
@@ -100,6 +109,45 @@ def parse_chapters(request: ChapterParseRequest) -> dict:
         else "章节数量不足，请输入至少 3 个章节的小说文本。"
     )
     return _build_chapter_response(chapters=chapters, is_valid=is_valid, message=message)
+
+
+@app.post("/api/script/generate")
+def generate_script(request: ScriptGenerateRequest) -> dict:
+    """Generate screenplay YAML from novel text and adaptation settings."""
+    text = request.text.strip()
+    if not text:
+        raise HTTPException(
+            status_code=400,
+            detail="输入文本为空，请粘贴或上传小说文本。",
+        )
+
+    try:
+        script_structure = build_script_structure(
+            text,
+            adaptation_profile=request.adaptation_profile,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    screenplay = script_structure["screenplay"]
+    quality_report = screenplay["quality_report"]
+    yaml_text = yaml.safe_dump(
+        script_structure,
+        allow_unicode=True,
+        sort_keys=False,
+    )
+
+    return {
+        "yaml": yaml_text,
+        "summary": {
+            "chapter_count": quality_report["chapter_count"],
+            "scene_count": quality_report["scene_count"],
+            "character_count": quality_report["character_count"],
+            "chapter_coverage_rate": quality_report["chapter_coverage_rate"],
+        },
+        "characters": screenplay["characters"],
+        "message": "剧本 YAML 生成成功。",
+    }
 
 
 def _build_chapter_response(

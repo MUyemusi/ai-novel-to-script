@@ -24,6 +24,9 @@ const state = {
   rawNovelText: "",
   chapters: [],
   generatedYaml: "",
+  generatedSummary: null,
+  generatedCharacters: [],
+  isGeneratingYaml: false,
   validationResult: null,
   previewReady: false,
   previewModalOpen: false,
@@ -52,6 +55,16 @@ function initApp() {
   elements.chapterRequirementText = document.getElementById("chapterRequirementText");
   elements.chapterMessage = document.getElementById("chapterMessage");
   elements.chapterList = document.getElementById("chapterList");
+  elements.yamlOutput = document.getElementById("yamlOutput");
+  elements.yamlMessage = document.getElementById("yamlMessage");
+  elements.yamlStatusBadge = document.getElementById("yamlStatusBadge");
+  elements.scriptSummary = document.getElementById("scriptSummary");
+  elements.summaryChapterCount = document.getElementById("summaryChapterCount");
+  elements.summarySceneCount = document.getElementById("summarySceneCount");
+  elements.summaryCharacterCount = document.getElementById("summaryCharacterCount");
+  elements.summaryCoverageRate = document.getElementById("summaryCoverageRate");
+  elements.charactersTable = document.getElementById("charactersTable");
+  elements.charactersList = document.getElementById("charactersList");
   elements.previewModal = document.getElementById("previewModal");
   
   // Adaptation profile elements
@@ -69,7 +82,7 @@ function initApp() {
   document.getElementById("topLoadExampleBtn").addEventListener("click", loadExampleNovel);
   document.getElementById("panelLoadExampleBtn").addEventListener("click", loadExampleNovel);
   document.getElementById("clearTextBtn").addEventListener("click", clearNovelText);
-  document.getElementById("generateYamlBtn").addEventListener("click", () => showComingSoon("剧本 YAML 生成"));
+  document.getElementById("generateYamlBtn").addEventListener("click", generateYaml);
   document.getElementById("cleanScriptBtn").addEventListener("click", () => showComingSoon("清洗渲染剧本"));
   document.getElementById("previewScriptBtn").addEventListener("click", () => showComingSoon("最终剧本预览"));
   document.getElementById("closePreviewBtn").addEventListener("click", closePreviewModal);
@@ -79,14 +92,16 @@ function initApp() {
   elements.txtUpload.addEventListener("change", handleTxtUpload);
   
   // Adaptation profile event listeners
-  elements.toneSelect.addEventListener("change", updateAdaptationSummary);
-  elements.mediumSelect.addEventListener("change", updateAdaptationSummary);
-  elements.toneIntensity.addEventListener("input", updateAdaptationSummary);
-  elements.adaptationDegree.addEventListener("input", updateAdaptationSummary);
-  elements.dialoguePreservationDegree.addEventListener("input", updateAdaptationSummary);
+  elements.toneSelect.addEventListener("change", handleAdaptationInputChange);
+  elements.mediumSelect.addEventListener("change", handleAdaptationInputChange);
+  elements.toneIntensity.addEventListener("input", handleAdaptationInputChange);
+  elements.adaptationDegree.addEventListener("input", handleAdaptationInputChange);
+  elements.dialoguePreservationDegree.addEventListener("input", handleAdaptationInputChange);
 
   updateTextStats();
   resetChapterResults();
+  resetYamlResults();
+  updateActionButtons();
   showStatus("等待输入小说文本", "info");
   loadAndRenderStyleOptions();
   checkBackendStylesApi();
@@ -96,6 +111,7 @@ function initApp() {
 function handleTextInput() {
   state.rawNovelText = elements.novelInput.value;
   resetChapterResults();
+  resetYamlResults();
   const count = updateTextStats();
   if (count > 0) {
     showStatus(`已输入 ${count} 字`, "success");
@@ -123,6 +139,7 @@ function handleTxtUpload(event) {
     elements.novelInput.value = String(reader.result || "");
     state.rawNovelText = elements.novelInput.value;
     resetChapterResults();
+    resetYamlResults();
     updateTextStats();
     updateActionButtons();
     showStatus("TXT 文件读取成功", "success");
@@ -144,6 +161,7 @@ async function loadExampleNovel() {
     elements.novelInput.value = data.text || "";
     state.rawNovelText = elements.novelInput.value;
     resetChapterResults();
+    resetYamlResults();
     updateTextStats();
     updateActionButtons();
     showStatus("示例小说加载成功", "success");
@@ -159,6 +177,7 @@ function clearNovelText() {
   elements.txtUpload.value = "";
   updateTextStats();
   resetChapterResults();
+  resetYamlResults();
   updateActionButtons();
   showStatus("已清空输入内容", "info");
 }
@@ -177,6 +196,7 @@ async function parseChapters() {
     return;
   }
 
+  resetYamlResults();
   showStatus("正在识别章节……", "info");
   renderChapterSummary({
     chapter_count: 0,
@@ -216,6 +236,63 @@ async function parseChapters() {
     renderChapterCards([]);
     updateActionButtons();
     showStatus("章节识别失败，请确认后端服务已启动。", "error");
+  }
+}
+
+async function generateYaml() {
+  if (state.isGeneratingYaml) {
+    return;
+  }
+
+  if (!state.rawNovelText.trim()) {
+    renderYamlMessage("请先输入或加载小说文本。", "warning");
+    showStatus("请先输入或加载小说文本。", "warning");
+    return;
+  }
+
+  if (state.chapters.length < 3) {
+    renderYamlMessage("章节不足 3 章，请先识别章节并满足生成要求。", "warning");
+    showStatus("章节不足 3 章，暂不能生成 YAML。", "warning");
+    updateActionButtons();
+    return;
+  }
+
+  state.isGeneratingYaml = true;
+  updateActionButtons();
+  renderYamlMessage("正在生成 YAML……", "info");
+  elements.yamlStatusBadge.textContent = "生成中";
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/script/generate`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        text: state.rawNovelText,
+        adaptation_profile: buildAdaptationProfileRequest(),
+      }),
+    });
+
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.detail || "YAML 生成失败");
+    }
+
+    state.generatedYaml = data.yaml || "";
+    state.generatedSummary = data.summary || null;
+    state.generatedCharacters = data.characters || [];
+    renderYamlResult(data);
+    showStatus(data.message || "剧本 YAML 生成成功。", "success");
+  } catch (error) {
+    state.generatedYaml = "";
+    state.generatedSummary = null;
+    state.generatedCharacters = [];
+    renderYamlError(error.message || "剧本 YAML 生成失败，请确认后端服务已启动。");
+    showStatus("剧本 YAML 生成失败，请检查文本和后端服务。", "error");
+  } finally {
+    state.isGeneratingYaml = false;
+    updateActionButtons();
   }
 }
 
@@ -274,14 +351,104 @@ function resetChapterResults() {
   renderChapterCards([]);
 }
 
+function resetYamlResults() {
+  state.generatedYaml = "";
+  state.generatedSummary = null;
+  state.generatedCharacters = [];
+  state.isGeneratingYaml = false;
+  elements.yamlOutput.value = "";
+  elements.scriptSummary.hidden = true;
+  elements.charactersTable.hidden = true;
+  elements.charactersList.innerHTML = "";
+  elements.yamlStatusBadge.textContent = "未生成";
+  renderYamlMessage("识别至少 3 章后可生成 YAML。", "info");
+}
+
+function buildAdaptationProfileRequest() {
+  return {
+    tone: {
+      style: elements.toneSelect.value,
+      intensity: parseInt(elements.toneIntensity.value, 10),
+    },
+    target: {
+      medium: elements.mediumSelect.value,
+      adaptation_degree: parseInt(elements.adaptationDegree.value, 10),
+    },
+    dialogue: {
+      preservation_degree: parseInt(elements.dialoguePreservationDegree.value, 10),
+    },
+  };
+}
+
+function renderYamlResult(data) {
+  elements.yamlOutput.value = data.yaml || "";
+  elements.yamlStatusBadge.textContent = "已生成";
+  renderYamlMessage(data.message || "剧本 YAML 生成成功。", "success");
+  renderScriptSummary(data.summary || {});
+  renderCharacters(data.characters || []);
+}
+
+function renderScriptSummary(summary) {
+  elements.summaryChapterCount.textContent = String(summary.chapter_count || 0);
+  elements.summarySceneCount.textContent = String(summary.scene_count || 0);
+  elements.summaryCharacterCount.textContent = String(summary.character_count || 0);
+  elements.summaryCoverageRate.textContent = summary.chapter_coverage_rate || "-";
+  elements.scriptSummary.hidden = false;
+}
+
+function renderCharacters(characters) {
+  if (!characters.length) {
+    elements.charactersTable.hidden = true;
+    elements.charactersList.innerHTML = "";
+    return;
+  }
+
+  elements.charactersList.innerHTML = characters
+    .map((character) => {
+      const name = escapeHtml(character.name || "未命名人物");
+      const role = escapeHtml(character.role || "未标注");
+      const description = escapeHtml(character.description || "暂无描述");
+      const characterId = escapeHtml(character.character_id || "");
+
+      return `
+        <article class="character-row">
+          <div>
+            <strong>${name}</strong>
+            <span>${characterId}</span>
+          </div>
+          <p>${role}</p>
+          <p>${description}</p>
+        </article>
+      `;
+    })
+    .join("");
+  elements.charactersTable.hidden = false;
+}
+
+function renderYamlMessage(message, type = "info") {
+  elements.yamlMessage.textContent = message;
+  elements.yamlMessage.className = `yaml-message ${type}`;
+}
+
+function renderYamlError(message) {
+  elements.yamlOutput.value = "";
+  elements.scriptSummary.hidden = true;
+  elements.charactersTable.hidden = true;
+  elements.charactersList.innerHTML = "";
+  elements.yamlStatusBadge.textContent = "失败";
+  renderYamlMessage(message, "error");
+}
+
 function updateActionButtons() {
   const hasText = state.rawNovelText.trim().length > 0;
   const hasEnoughChapters = state.chapters.length >= 3;
+  const canGenerateYaml = hasEnoughChapters && !state.isGeneratingYaml;
 
   elements.parseChaptersBtn.classList.toggle("ready", hasText);
-  elements.generateYamlBtn.classList.toggle("ready", hasEnoughChapters);
-  elements.generateYamlBtn.classList.toggle("disabled-action", !hasEnoughChapters);
-  elements.generateYamlBtn.setAttribute("aria-disabled", String(!hasEnoughChapters));
+  elements.generateYamlBtn.classList.toggle("ready", canGenerateYaml);
+  elements.generateYamlBtn.classList.toggle("disabled-action", !canGenerateYaml);
+  elements.generateYamlBtn.disabled = !canGenerateYaml;
+  elements.generateYamlBtn.setAttribute("aria-disabled", String(!canGenerateYaml));
 }
 
 function updateTextStats() {
@@ -387,6 +554,14 @@ function updateAdaptationSummary() {
   // Update summary text
   const summaryText = `以${toneStyle}风格生成，风格体现程度为 ${toneIntensity}%；适配${mediumType}，调整自由度为 ${adaptationDegree}%；原文对白保留度为 ${dialoguePreservationDegree}%。`;
   elements.adaptationSummaryText.textContent = summaryText;
+}
+
+function handleAdaptationInputChange() {
+  updateAdaptationSummary();
+  if (state.generatedYaml) {
+    resetYamlResults();
+  }
+  updateActionButtons();
 }
 
 function checkBackendStylesApi() {

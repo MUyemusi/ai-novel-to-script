@@ -21,6 +21,7 @@ try:
     )
     from backend.services.script_generator import build_script_structure
     from backend.services.style_options import get_script_styles
+    from backend.services.yaml_validator import validate_yaml_text
 except ModuleNotFoundError:
     from config import get_llm_settings
     from services.chapter_parser import split_chapters, validate_min_chapters
@@ -29,6 +30,7 @@ except ModuleNotFoundError:
     from services.llm_result_validator import validate_normalized_script_structure
     from services.script_generator import build_script_structure
     from services.style_options import get_script_styles
+    from services.yaml_validator import validate_yaml_text
 
 
 app = FastAPI(title="AI 小说转剧本工具", version="0.1.0")
@@ -59,6 +61,10 @@ class ChapterParseRequest(BaseModel):
 class ScriptGenerateRequest(BaseModel):
     text: str
     adaptation_profile: Optional[Dict[str, Any]] = None
+
+
+class YamlValidateRequest(BaseModel):
+    yaml: str
 
 
 @app.get("/health")
@@ -94,6 +100,12 @@ def get_example_novel() -> dict[str, str]:
 def get_styles() -> dict:
     """Return available script style configurations for screenplay generation."""
     return get_script_styles()
+
+
+@app.post("/api/yaml/validate")
+def validate_yaml(request: YamlValidateRequest) -> dict:
+    """Validate screenplay YAML with MVP schema and business rules."""
+    return validate_yaml_text(request.yaml)
 
 
 @app.post("/api/chapters/parse")

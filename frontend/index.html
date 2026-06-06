@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>叙构 | AI 小说转剧本工具</title>
+  <link rel="icon" href="data:,">
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -144,11 +145,22 @@
         </div>
 
         <div class="yaml-message info" id="yamlMessage">识别至少 3 章后可生成 YAML。</div>
-        <textarea id="yamlOutput" class="yaml-output" readonly placeholder="生成后将在这里显示 YAML..."></textarea>
+        <textarea id="yamlOutput" class="yaml-output" placeholder="生成后将在这里显示 YAML..."></textarea>
 
         <div class="output-actions">
+          <button type="button" class="btn disabled-action" id="validateYamlButton" aria-disabled="true" disabled>校验 YAML</button>
+          <button type="button" class="btn disabled-action" id="downloadYamlButton" aria-disabled="true" disabled>下载 YAML</button>
           <button type="button" class="btn disabled-action" id="cleanScriptBtn" aria-disabled="true" disabled>清洗为剧本</button>
         </div>
+
+        <section class="yaml-validation-panel" id="yamlValidationPanel" hidden aria-live="polite">
+          <div class="validation-summary-row">
+            <strong id="validationStatusText">尚未校验</strong>
+            <span class="validation-badge" id="validationValidBadge">-</span>
+          </div>
+          <div class="validation-metrics" id="validationMetrics"></div>
+          <div class="validation-issues" id="validationIssues"></div>
+        </section>
       </section>
     </main>
   </div>

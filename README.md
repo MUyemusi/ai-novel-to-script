@@ -29,6 +29,7 @@ AI 小说转剧本工具是一个比赛 Demo 项目，面向小说作者，目�
 - 前端 YAML 结果展示、summary 统计和人物表展示
 - 前端 YAML 校验与 `screenplay.yaml` 下载
 - 前端可读剧本渲染：将当前 YAML 渲染为可复制的 Acts → Scenes → Characters → Dialogue 文本
+- 前端局部重渲染：可选择某一幕或某一场并仅替换该部分
 - 前端稿纸预览与最终剧本确认：可在弹窗内编辑并确认最终文本
 - 可选 LLM 生成：支持 `generation_mode` 为 `rule`、`llm`、`rule_fallback`
 - PR14：LLM 输出结构规范化与基础校验，轻微不规范结构会自动修复并返回 `warnings`
@@ -36,6 +37,7 @@ AI 小说转剧本工具是一个比赛 Demo 项目，面向小说作者，目�
 - PR16：前端接入“校验 YAML”和“下载 YAML”按钮
 - PR17：前端接入“渲染剧本”按钮
 - PR18：前端接入“稿纸预览”和“确认最终剧本”弹窗
+- PR20：前端接入“局部重渲染”选择器和按钮
 - 前端静态页面骨架
 
 ## 项目结构
@@ -193,6 +195,7 @@ uvicorn main:app --reload
 - 点击“校验 YAML”会调用 `POST /api/yaml/validate`，并展示 `valid`、`status`、`errors`、`warnings` 和重新计算的 `summary`。
 - 点击“下载 YAML”会把当前 YAML 编辑区内容保存为 `screenplay.yaml`。
 - 点击“渲染剧本”会把当前 YAML 渲染为可复制的可读剧本文本。每次手动修改 YAML 后，可再次点击该按钮刷新渲染结果。
+- 在可读剧本区选择某一幕或某一场后，点击“局部重渲染”会复用现有剧本生成 API 重写所选部分，并保持未选择部分不变。
 - 点击“稿纸预览”会打开可编辑弹窗。弹窗优先载入已确认的最终剧本；如果还没有确认文本，则载入当前可读剧本文本。编辑后点击“确认最终剧本”会把文本保存到前端状态，作为后续 Word 导出的来源。关闭弹窗不会修改 YAML，也不会保存未确认的修改。
 - 在稿纸弹窗中确认最终剧本后，点击“导出 Word”会下载 `screenplay.docx`。导出内容来自已确认的最终剧本文本，不会自动使用未确认的弹窗编辑内容。
 
@@ -329,6 +332,14 @@ PR18 does not add Word/PDF export, local re-rendering, backend APIs, database, l
 PR19 adds a frontend-only `导出 Word` button inside the paper preview modal. After users click `确认最终剧本`, the confirmed `state.finalScriptText` can be exported as `screenplay.docx`.
 
 The Word export is generated in the browser from the confirmed final text. It preserves line breaks and indentation from the readable script so the Acts -> Scenes -> Characters -> Dialogue hierarchy remains clear. PR19 does not add PDF export, local re-rendering, backend APIs, database, login, or API key exposure.
+
+## PR20: Frontend partial re-rendering
+
+PR20 adds a frontend-only `局部重渲染` control in the readable script area. Users can choose an act or scene, confirm the action, and the frontend reuses the existing `POST /api/script/generate` API to generate replacement YAML for the selected part.
+
+After the replacement is applied, the YAML textarea and readable script are refreshed. If a final script has already been confirmed, the matching act or scene section in `state.finalScriptText` is updated while unselected sections remain unchanged.
+
+PR20 does not add backend APIs, PDF export, database, login, API key exposure, or changes to YAML validation/download/full-generation logic.
 
 ## 文档位置
 

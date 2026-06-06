@@ -1057,6 +1057,12 @@ input[type="range"]::-moz-range-thumb {
   border-top: 1px solid var(--border);
 }
 
+.word-export-button.ready {
+  border-color: rgba(99, 145, 105, 0.36);
+  background: rgba(99, 145, 105, 0.12);
+  color: #3d7045;
+}
+
 @media (max-width: 1380px) {
   html {
     min-width: 0;

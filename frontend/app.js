@@ -78,6 +78,7 @@ function initApp() {
   elements.finalScriptStatus = document.getElementById("finalScriptStatus");
   elements.closeScriptPreviewButton = document.getElementById("closeScriptPreviewButton");
   elements.cancelScriptPreviewButton = document.getElementById("cancelScriptPreviewButton");
+  elements.exportWordButton = document.getElementById("exportWordButton");
   elements.confirmFinalScriptButton = document.getElementById("confirmFinalScriptButton");
   elements.scriptSummary = document.getElementById("scriptSummary");
   elements.summaryChapterCount = document.getElementById("summaryChapterCount");
@@ -109,6 +110,7 @@ function initApp() {
   elements.previewScriptButton.addEventListener("click", openScriptPreviewModal);
   elements.closeScriptPreviewButton.addEventListener("click", closeScriptPreviewModal);
   elements.cancelScriptPreviewButton.addEventListener("click", closeScriptPreviewModal);
+  elements.exportWordButton.addEventListener("click", exportFinalScriptToWord);
   elements.confirmFinalScriptButton.addEventListener("click", confirmFinalScript);
   document.addEventListener("keydown", handleGlobalKeydown);
 
@@ -573,14 +575,7 @@ function downloadCurrentYaml() {
   }
 
   const blob = new Blob([yamlText], { type: "application/x-yaml;charset=utf-8" });
-  const downloadUrl = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = downloadUrl;
-  link.download = "screenplay.yaml";
-  document.body.appendChild(link);
-  link.click();
-  link.remove();
-  URL.revokeObjectURL(downloadUrl);
+  downloadBlob(blob, "screenplay.yaml");
   renderYamlMessage("YAML 文件已准备下载。", "success");
 }
 
@@ -731,6 +726,33 @@ function confirmFinalScript() {
   updateActionButtons();
 }
 
+function exportFinalScriptToWord() {
+  const finalText = state.finalScriptText.trim();
+  if (!finalText) {
+    elements.finalScriptStatus.textContent = "请先点击“确认最终剧本”，再导出 Word。";
+    elements.finalScriptStatus.className = "final-script-status warning";
+    renderYamlMessage("请先确认最终剧本后再导出 Word。", "warning");
+    updateActionButtons();
+    return;
+  }
+
+  const originalText = elements.exportWordButton.textContent;
+  elements.exportWordButton.textContent = "导出中...";
+  elements.exportWordButton.disabled = true;
+  elements.exportWordButton.setAttribute("aria-disabled", "true");
+
+  try {
+    const docxBlob = buildDocxBlob(finalText);
+    downloadBlob(docxBlob, "screenplay.docx");
+    elements.finalScriptStatus.textContent = "Word 文件已准备下载。";
+    elements.finalScriptStatus.className = "final-script-status success";
+    renderYamlMessage("Word 文件已准备下载。", "success");
+  } finally {
+    elements.exportWordButton.textContent = originalText;
+    updateActionButtons();
+  }
+}
+
 function handleGlobalKeydown(event) {
   if (event.key === "Escape" && state.previewModalOpen) {
     closeScriptPreviewModal();
@@ -739,6 +761,192 @@ function handleGlobalKeydown(event) {
 
 function getReadableScriptText() {
   return elements.readableScriptOutput ? elements.readableScriptOutput.value : "";
+}
+
+function buildDocxBlob(text) {
+  const files = [
+    {
+      path: "[Content_Types].xml",
+      content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
+  <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
+  <Default Extension="xml" ContentType="application/xml"/>
+  <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
+</Types>`,
+    },
+    {
+      path: "_rels/.rels",
+      content: `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>
+</Relationships>`,
+    },
+    {
+      path: "word/document.xml",
+      content: buildDocumentXml(text),
+    },
+  ];
+
+  return new Blob([createZipArchive(files)], {
+    type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  });
+}
+
+function buildDocumentXml(text) {
+  const paragraphs = text
+    .replace(/\r\n/g, "\n")
+    .split("\n")
+    .map((line) => buildWordParagraph(line || ""))
+    .join("");
+
+  return `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:body>
+    ${paragraphs}
+    <w:sectPr>
+      <w:pgSz w:w="11906" w:h="16838"/>
+      <w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/>
+    </w:sectPr>
+  </w:body>
+</w:document>`;
+}
+
+function buildWordParagraph(line) {
+  const leadingSpaces = line.match(/^\s*/)[0].length;
+  const indent = Math.min(leadingSpaces * 180, 2160);
+  const text = escapeXml(line.trimStart());
+  return `<w:p>
+      <w:pPr>
+        <w:ind w:left="${indent}"/>
+        <w:spacing w:after="120" w:line="360" w:lineRule="auto"/>
+      </w:pPr>
+      <w:r>
+        <w:rPr>
+          <w:rFonts w:ascii="Microsoft YaHei" w:eastAsia="Microsoft YaHei" w:hAnsi="Microsoft YaHei"/>
+          <w:sz w:val="22"/>
+        </w:rPr>
+        <w:t xml:space="preserve">${text}</w:t>
+      </w:r>
+    </w:p>`;
+}
+
+function createZipArchive(files) {
+  const encoder = new TextEncoder();
+  const localParts = [];
+  const centralParts = [];
+  let offset = 0;
+
+  files.forEach((file) => {
+    const nameBytes = encoder.encode(file.path);
+    const dataBytes = encoder.encode(file.content);
+    const crc = crc32(dataBytes);
+    const localHeader = createZipLocalHeader(nameBytes, dataBytes, crc);
+    const centralHeader = createZipCentralHeader(nameBytes, dataBytes, crc, offset);
+
+    localParts.push(localHeader, dataBytes);
+    centralParts.push(centralHeader);
+    offset += localHeader.length + dataBytes.length;
+  });
+
+  const centralSize = centralParts.reduce((size, part) => size + part.length, 0);
+  const endRecord = createZipEndRecord(files.length, centralSize, offset);
+  const totalSize = offset + centralSize + endRecord.length;
+  const zipBytes = new Uint8Array(totalSize);
+  let cursor = 0;
+
+  [...localParts, ...centralParts, endRecord].forEach((part) => {
+    zipBytes.set(part, cursor);
+    cursor += part.length;
+  });
+
+  return zipBytes;
+}
+
+function createZipLocalHeader(nameBytes, dataBytes, crc) {
+  const header = new Uint8Array(30 + nameBytes.length);
+  const view = new DataView(header.buffer);
+  view.setUint32(0, 0x04034b50, true);
+  view.setUint16(4, 20, true);
+  view.setUint16(6, 0x0800, true);
+  view.setUint16(8, 0, true);
+  view.setUint16(10, 0, true);
+  view.setUint16(12, 0, true);
+  view.setUint32(14, crc, true);
+  view.setUint32(18, dataBytes.length, true);
+  view.setUint32(22, dataBytes.length, true);
+  view.setUint16(26, nameBytes.length, true);
+  view.setUint16(28, 0, true);
+  header.set(nameBytes, 30);
+  return header;
+}
+
+function createZipCentralHeader(nameBytes, dataBytes, crc, offset) {
+  const header = new Uint8Array(46 + nameBytes.length);
+  const view = new DataView(header.buffer);
+  view.setUint32(0, 0x02014b50, true);
+  view.setUint16(4, 20, true);
+  view.setUint16(6, 20, true);
+  view.setUint16(8, 0x0800, true);
+  view.setUint16(10, 0, true);
+  view.setUint16(12, 0, true);
+  view.setUint16(14, 0, true);
+  view.setUint32(16, crc, true);
+  view.setUint32(20, dataBytes.length, true);
+  view.setUint32(24, dataBytes.length, true);
+  view.setUint16(28, nameBytes.length, true);
+  view.setUint16(30, 0, true);
+  view.setUint16(32, 0, true);
+  view.setUint16(34, 0, true);
+  view.setUint16(36, 0, true);
+  view.setUint32(38, 0, true);
+  view.setUint32(42, offset, true);
+  header.set(nameBytes, 46);
+  return header;
+}
+
+function createZipEndRecord(fileCount, centralSize, centralOffset) {
+  const record = new Uint8Array(22);
+  const view = new DataView(record.buffer);
+  view.setUint32(0, 0x06054b50, true);
+  view.setUint16(4, 0, true);
+  view.setUint16(6, 0, true);
+  view.setUint16(8, fileCount, true);
+  view.setUint16(10, fileCount, true);
+  view.setUint32(12, centralSize, true);
+  view.setUint32(16, centralOffset, true);
+  view.setUint16(20, 0, true);
+  return record;
+}
+
+function crc32(bytes) {
+  let crc = 0xffffffff;
+  for (let index = 0; index < bytes.length; index += 1) {
+    crc ^= bytes[index];
+    for (let bit = 0; bit < 8; bit += 1) {
+      crc = (crc >>> 1) ^ (0xedb88320 & -(crc & 1));
+    }
+  }
+  return (crc ^ 0xffffffff) >>> 0;
+}
+
+function downloadBlob(blob, filename) {
+  const downloadUrl = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = downloadUrl;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(downloadUrl);
+}
+
+function escapeXml(value) {
+  return String(value)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
 }
 
 function renderYamlValidationResult(result) {
@@ -866,6 +1074,7 @@ function updateActionButtons() {
   const canGenerateYaml = hasEnoughChapters && !state.isGeneratingYaml;
   const hasYaml = Boolean(getCurrentYaml().trim());
   const canValidateYaml = hasYaml && !state.isValidatingYaml;
+  const hasFinalScript = Boolean(state.finalScriptText.trim());
   const canOpenPreview = hasYaml || Boolean(state.finalScriptText.trim() || getReadableScriptText().trim());
 
   elements.parseChaptersBtn.classList.toggle("ready", hasText);
@@ -889,6 +1098,10 @@ function updateActionButtons() {
   elements.previewScriptButton.classList.toggle("disabled-action", !canOpenPreview);
   elements.previewScriptButton.disabled = !canOpenPreview;
   elements.previewScriptButton.setAttribute("aria-disabled", String(!canOpenPreview));
+  elements.exportWordButton.classList.toggle("ready", hasFinalScript);
+  elements.exportWordButton.classList.toggle("disabled-action", !hasFinalScript);
+  elements.exportWordButton.disabled = !hasFinalScript;
+  elements.exportWordButton.setAttribute("aria-disabled", String(!hasFinalScript));
 }
 
 function getCurrentYaml() {

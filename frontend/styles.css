@@ -1,7 +1,7 @@
 :root {
   color-scheme: light;
   font-family: "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  --bg-gradient: linear-gradient(135deg, #f7f1e7 0%, #faf5eb 100%);
+  --bg-gradient: linear-gradient(135deg, #f1dcaf 0%, #f6ead0 48%, #f7efe1 100%);
   --panel-bg: rgba(255, 249, 240, 0.88);
   --panel-strong: rgba(255, 252, 247, 0.96);
   --border: rgba(202, 177, 138, 0.34);
@@ -34,11 +34,11 @@ body::before {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  opacity: 0.14;
+  opacity: 0.22;
   background:
-    radial-gradient(circle at 12% 20%, rgba(234, 194, 129, 0.14), transparent 22%),
-    radial-gradient(circle at 86% 16%, rgba(235, 204, 152, 0.12), transparent 18%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(255, 248, 236, 0.04));
+    radial-gradient(circle at 12% 20%, rgba(229, 178, 89, 0.24), transparent 24%),
+    radial-gradient(circle at 86% 16%, rgba(232, 193, 112, 0.2), transparent 20%),
+    linear-gradient(180deg, rgba(255, 251, 239, 0.12), rgba(243, 220, 173, 0.08));
 }
 
 button,
@@ -289,17 +289,29 @@ button {
   position: absolute;
   inset: 0;
   background:
-    radial-gradient(circle at 8% 16%, rgba(242, 198, 119, 0.1), transparent 18%),
-    radial-gradient(circle at 92% 14%, rgba(242, 198, 119, 0.08), transparent 16%),
-    linear-gradient(180deg, rgba(255, 251, 244, 0.18), rgba(255, 248, 236, 0.1));
+    radial-gradient(circle at 8% 16%, rgba(232, 184, 92, 0.2), transparent 22%),
+    radial-gradient(circle at 92% 14%, rgba(238, 197, 112, 0.16), transparent 18%),
+    linear-gradient(180deg, rgba(255, 248, 232, 0.24), rgba(244, 223, 182, 0.14));
   pointer-events: none;
 }
 
 .welcome-copy,
 .welcome-footer,
-.floating-orbs {
+.floating-orbs,
+.snow-canvas {
   position: relative;
   z-index: 1;
+}
+
+.snow-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 1;
+  mix-blend-mode: screen;
 }
 
 .floating-orbs {
@@ -307,6 +319,7 @@ button {
   inset: 0;
   pointer-events: none;
   overflow: hidden;
+  z-index: 1;
 }
 
 .orb {
@@ -360,6 +373,7 @@ button {
   text-align: center;
   max-width: 760px;
   margin-top: -28px;
+  z-index: 2;
 }
 
 .hero-title {
@@ -399,6 +413,7 @@ button {
   bottom: 28px;
   color: var(--text-muted);
   font-size: 13px;
+  z-index: 2;
 }
 
 .modal-backdrop {

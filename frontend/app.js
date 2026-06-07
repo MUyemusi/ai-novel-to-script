@@ -6,6 +6,9 @@ const state = {
   sidebarOpen: false,
   createModalOpen: false,
   isCreatingNotebook: false,
+  snowAnimationFrame: 0,
+  snowFlakes: [],
+  snowCanvasReady: false,
 };
 
 function initWelcomePage() {
@@ -21,6 +24,7 @@ function initWelcomePage() {
   elements.notebookDescriptionInput = document.getElementById("notebookDescriptionInput");
   elements.createNotebookMessage = document.getElementById("createNotebookMessage");
   elements.submitNotebookBtn = document.getElementById("submitNotebookBtn");
+  elements.snowCanvas = document.getElementById("snowCanvas");
 
   elements.memorySidebar.classList.remove("open");
 
@@ -41,6 +45,7 @@ function initWelcomePage() {
   setSidebarOpen(state.sidebarOpen);
   updateCreateNotebookActionState();
   loadNotebookMemories();
+  initSnowCanvas();
 }
 
 async function loadNotebookMemories() {
@@ -183,6 +188,144 @@ function setCreateNotebookMessage(message) {
 function updateCreateNotebookActionState() {
   elements.submitNotebookBtn.disabled = state.isCreatingNotebook;
   elements.submitNotebookBtn.textContent = state.isCreatingNotebook ? "创建中…" : "创建笔记本";
+}
+
+function initSnowCanvas() {
+  if (!elements.snowCanvas) {
+    return;
+  }
+
+  const context = elements.snowCanvas.getContext("2d");
+  if (!context) {
+    return;
+  }
+
+  elements.snowCanvasContext = context;
+  state.snowCanvasReady = true;
+  rebuildSnowField();
+  window.addEventListener("resize", rebuildSnowField);
+  startSnowLoop();
+}
+
+function rebuildSnowField() {
+  if (!state.snowCanvasReady) {
+    return;
+  }
+
+  const rect = elements.snowCanvas.getBoundingClientRect();
+  const dpr = window.devicePixelRatio || 1;
+  const width = Math.max(1, Math.floor(rect.width));
+  const height = Math.max(1, Math.floor(rect.height));
+
+  elements.snowCanvas.width = Math.floor(width * dpr);
+  elements.snowCanvas.height = Math.floor(height * dpr);
+  elements.snowCanvas.style.width = `${width}px`;
+  elements.snowCanvas.style.height = `${height}px`;
+  elements.snowCanvasContext.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  const density = Math.max(92, Math.round((width * height) / 18000));
+  state.snowFlakes = Array.from({ length: density }, (_, index) => createSnowFlake(width, height, index));
+}
+
+function createSnowFlake(width, height, index) {
+  const layer = index % 4;
+  const depth = 0.35 + layer * 0.2 + Math.random() * 0.08;
+  return {
+    x: Math.random() * width,
+    y: Math.random() * height,
+    radius: 1.2 + depth * (1.8 + Math.random() * 3.2),
+    speedY: 16 + depth * (24 + Math.random() * 38),
+    sway: 12 + Math.random() * 32,
+    swaySpeed: 0.35 + Math.random() * 0.85,
+    opacity: 0.42 + depth * 0.34,
+    blur: depth * 0.8,
+    twinkle: Math.random() * Math.PI * 2,
+    driftSeed: Math.random() * Math.PI * 2,
+  };
+}
+
+function startSnowLoop() {
+  if (state.snowAnimationFrame) {
+    window.cancelAnimationFrame(state.snowAnimationFrame);
+  }
+
+  const startTime = performance.now();
+  let previousTime = startTime;
+
+  const frame = (timestamp) => {
+    const delta = Math.min((timestamp - previousTime) / 1000, 0.032);
+    const elapsed = (timestamp - startTime) / 1000;
+    previousTime = timestamp;
+    renderSnowFrame(delta, elapsed);
+    state.snowAnimationFrame = window.requestAnimationFrame(frame);
+  };
+
+  state.snowAnimationFrame = window.requestAnimationFrame(frame);
+}
+
+function renderSnowFrame(delta, elapsed) {
+  if (!state.snowCanvasReady) {
+    return;
+  }
+
+  const canvas = elements.snowCanvas;
+  const context = elements.snowCanvasContext;
+  const width = parseFloat(canvas.style.width) || canvas.clientWidth || 0;
+  const height = parseFloat(canvas.style.height) || canvas.clientHeight || 0;
+  if (!width || !height) {
+    return;
+  }
+
+  context.clearRect(0, 0, width, height);
+
+  const gradient = context.createLinearGradient(0, 0, 0, height);
+  gradient.addColorStop(0, "rgba(196, 227, 255, 0.34)");
+  gradient.addColorStop(0.48, "rgba(244, 250, 255, 0.14)");
+  gradient.addColorStop(1, "rgba(255, 255, 255, 0)");
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, width, height);
+
+  state.snowFlakes.forEach((flake) => {
+    flake.y += flake.speedY * delta;
+    const lateralShift = Math.sin(elapsed * flake.swaySpeed + flake.driftSeed) * flake.sway * delta;
+    flake.x += lateralShift;
+
+    if (flake.y > height + flake.radius * 4) {
+      flake.y = -flake.radius * 6;
+      flake.x = Math.random() * width;
+    }
+    if (flake.x < -30) {
+      flake.x = width + 20;
+    } else if (flake.x > width + 30) {
+      flake.x = -20;
+    }
+
+    const pulse = 0.82 + Math.sin(elapsed * 2.2 + flake.twinkle) * 0.18;
+    const alpha = flake.opacity * pulse;
+    const glowRadius = flake.radius * (2.2 + pulse * 0.8);
+
+    context.beginPath();
+    context.fillStyle = `rgba(255, 255, 255, ${Math.min(alpha * 1.12, 0.98)})`;
+    context.arc(flake.x, flake.y, flake.radius, 0, Math.PI * 2);
+    context.fill();
+
+    context.beginPath();
+    context.fillStyle = `rgba(210, 235, 255, ${alpha * 0.34})`;
+    context.arc(flake.x, flake.y, glowRadius, 0, Math.PI * 2);
+    context.fill();
+  });
+
+  context.fillStyle = "rgba(255, 255, 255, 0.05)";
+  for (let i = 0; i < 26; i += 1) {
+    const noiseX = pseudoRandom(i * 12.3 + elapsed * 0.4) * width;
+    const noiseY = pseudoRandom(i * 4.7 + elapsed * 0.18) * height;
+    context.fillRect(noiseX, noiseY, 1, 1);
+  }
+}
+
+function pseudoRandom(seed) {
+  const value = Math.sin(seed * 12.9898) * 43758.5453;
+  return value - Math.floor(value);
 }
 
 function formatTimestamp(value) {

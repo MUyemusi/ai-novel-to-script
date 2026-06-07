@@ -100,7 +100,12 @@ SCRIPT_SUMMARY_SCHEMA: Dict[str, Any] = {
         "chapter_count": {"type": "integer", "minimum": 0},
         "scene_count": {"type": "integer", "minimum": 0},
         "character_count": {"type": "integer", "minimum": 0},
-        "chapter_coverage_rate": {"type": "string"},
+        "chapter_coverage_rate": {
+            "anyOf": [
+                {"type": "string"},
+                {"type": "number"},
+            ]
+        },
     },
     "additionalProperties": False,
 }

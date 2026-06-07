@@ -10,7 +10,16 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 try:
+    from backend.config import get_llm_settings
     from backend.services.chapter_parser import split_chapters, validate_min_chapters
+    from backend.services.llm_client import (
+        LLMGenerationError,
+        build_script_structure_with_llm,
+    )
+    from backend.services.llm_result_normalizer import normalize_llm_script_structure
+    from backend.services.llm_result_validator import (
+        validate_normalized_script_structure,
+    )
     from backend.services.notebook_store import (
         append_conversation,
         create_notebook,
@@ -31,8 +40,13 @@ try:
     )
     from backend.services.script_generator import build_script_structure
     from backend.services.style_options import get_script_styles
+    from backend.services.yaml_validator import validate_yaml_text
 except ModuleNotFoundError:
+    from config import get_llm_settings
     from services.chapter_parser import split_chapters, validate_min_chapters
+    from services.llm_client import LLMGenerationError, build_script_structure_with_llm
+    from services.llm_result_normalizer import normalize_llm_script_structure
+    from services.llm_result_validator import validate_normalized_script_structure
     from services.notebook_store import (
         append_conversation,
         create_notebook,
@@ -53,6 +67,7 @@ except ModuleNotFoundError:
     )
     from services.script_generator import build_script_structure
     from services.style_options import get_script_styles
+    from services.yaml_validator import validate_yaml_text
 
 
 app = FastAPI(title="AI 小说转剧本工具", version="0.1.0")
@@ -83,6 +98,10 @@ class ChapterParseRequest(BaseModel):
 class ScriptGenerateRequest(BaseModel):
     text: str
     adaptation_profile: Optional[Dict[str, Any]] = None
+
+
+class YamlValidateRequest(BaseModel):
+    yaml: str
 
 
 @app.get("/notebooks")
@@ -198,6 +217,12 @@ def get_styles() -> dict:
     return get_script_styles()
 
 
+@app.post("/api/yaml/validate")
+def validate_yaml(request: YamlValidateRequest) -> dict:
+    """Validate screenplay YAML with schema and business rules."""
+    return validate_yaml_text(request.yaml)
+
+
 @app.post("/api/chapters/parse")
 def parse_chapters(request: ChapterParseRequest) -> dict:
     """Parse novel text into chapter preview data."""
@@ -236,13 +261,58 @@ def generate_script(request: ScriptGenerateRequest) -> dict:
             detail="输入文本为空，请粘贴或上传小说文本。",
         )
 
-    try:
-        script_structure = build_script_structure(
-            text,
-            adaptation_profile=request.adaptation_profile,
+    chapters = split_chapters(text)
+    if not chapters:
+        raise HTTPException(status_code=400, detail="No chapter headings found in novel text.")
+    if not validate_min_chapters(chapters, min_count=MIN_REQUIRED_CHAPTERS):
+        raise HTTPException(
+            status_code=400,
+            detail="At least 3 chapters are required to build a screenplay.",
         )
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    settings = get_llm_settings()
+    generation_mode = "rule"
+    warnings: list[str] = []
+
+    if settings.use_llm:
+        try:
+            raw_script_structure = build_script_structure_with_llm(
+                chapters,
+                adaptation_profile=request.adaptation_profile,
+            )
+            script_structure, normalize_warnings = normalize_llm_script_structure(
+                raw_script_structure,
+                chapters=chapters,
+            )
+            is_valid, validation_errors = validate_normalized_script_structure(
+                script_structure
+            )
+            if not is_valid:
+                raise LLMGenerationError(
+                    "Normalized LLM output is invalid: " + "; ".join(validation_errors)
+                )
+            warnings.extend(normalize_warnings)
+            generation_mode = "llm"
+        except (LLMGenerationError, ValueError):
+            try:
+                script_structure = build_script_structure(
+                    text,
+                    adaptation_profile=request.adaptation_profile,
+                )
+            except ValueError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            generation_mode = "rule_fallback"
+            warnings.append(
+                "AI generation result was unusable; automatically used rule-based generation fallback."
+            )
+    else:
+        try:
+            script_structure = build_script_structure(
+                text,
+                adaptation_profile=request.adaptation_profile,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
     screenplay = script_structure["screenplay"]
     quality_report = screenplay["quality_report"]
@@ -261,6 +331,8 @@ def generate_script(request: ScriptGenerateRequest) -> dict:
             "chapter_coverage_rate": quality_report["chapter_coverage_rate"],
         },
         "characters": screenplay["characters"],
+        "generation_mode": generation_mode,
+        "warnings": warnings,
         "message": "剧本 YAML 生成成功。",
     }
 

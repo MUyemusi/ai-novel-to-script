@@ -17,7 +17,7 @@ from .schema import (
     NOTEBOOKS_RESPONSE_SCHEMA,
     validate_payload,
 )
-from .yaml_validator import read_yaml_file, write_yaml_file
+from .notebook_yaml_store import read_yaml_file, write_yaml_file
 
 
 def _utc_now() -> str:

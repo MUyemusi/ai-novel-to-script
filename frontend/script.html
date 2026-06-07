@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>叙构 | AI 小说转剧本工具</title>
-  <link rel="stylesheet" href="script-styles.css?v=20260607e">
+  <link rel="stylesheet" href="script-styles.css?v=20260607j">
 </head>
 <body>
   <div class="page-shell">
@@ -43,7 +43,6 @@
       <nav class="top-actions" aria-label="顶部操作">
         <button type="button" class="btn secondary" id="openStartPageBtn">起始页</button>
         <button type="button" class="btn secondary" id="openNotebookPageBtn">笔记本系统</button>
-        <button type="button" class="btn disabled-action" id="previewScriptBtn" aria-disabled="true" disabled>预览最终剧本</button>
       </nav>
     </header>
 
@@ -185,9 +184,9 @@
         </div>
         <div class="partial-render-status info" id="partialRenderStatus" hidden>选择幕或场后，可仅重渲染该部分。</div>
         <textarea id="readableScriptOutput" class="readable-script-output" readonly placeholder="点击“清洗为剧本”后，将在这里显示可复制的剧本文本。"></textarea>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn ghost" id="closeReadableScriptFooterBtn">关闭</button>
+        <div class="readable-script-actions">
+          <button type="button" class="btn secondary disabled-action" id="openPreviewFromReadableBtn" aria-disabled="true" disabled>预览最终剧本</button>
+        </div>
       </div>
     </div>
   </div>
@@ -202,11 +201,10 @@
       <div class="modal-body final-script-body">
         <textarea id="finalScriptTextarea" class="final-script-textarea" placeholder="可在这里编辑最终剧本文本。"></textarea>
         <p class="final-script-status" id="finalScriptStatus">编辑后点击“确认最终剧本”，保存为 Word 导出的文本来源。</p>
-      </div>
-      <div class="modal-footer">
-        <button type="button" class="btn ghost" id="modalResetBtn">关闭</button>
-        <button type="button" class="btn secondary disabled-action word-export-button" id="exportWordButton" aria-disabled="true" disabled>导出 Word</button>
-        <button type="button" class="btn primary" id="confirmFinalScriptButton">确认最终剧本</button>
+        <div class="final-script-actions">
+          <button type="button" class="btn secondary disabled-action word-export-button" id="exportWordButton" aria-disabled="true" disabled>导出 Word</button>
+          <button type="button" class="btn primary" id="confirmFinalScriptButton">确认最终剧本</button>
+        </div>
       </div>
     </div>
   </div>
@@ -300,13 +298,12 @@
     </div>
   </div>
 
-  <button type="button" class="floating-chat-trigger" id="openChatBtn" hidden>
-    <span class="chat-icon">💬</span>
-    <span class="chat-label">助理</span>
+  <button type="button" class="floating-chat-trigger" id="openChatBtn" hidden aria-label="打开 AI 创作助理">
+    <span class="chat-icon chat-icon-star">✦</span>
     <span class="chat-badge" id="chatBadge" hidden>0</span>
   </button>
 
   <script src="audio-player.js?v=20260607d"></script>
-  <script src="script-app.js?v=20260607e"></script>
+  <script src="script-app.js?v=20260607j"></script>
 </body>
 </html>

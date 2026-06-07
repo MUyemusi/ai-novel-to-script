@@ -38,6 +38,11 @@ const state = {
   isPartialRendering: false,
   isChatOpen: false,
   isSendingMessage: false,
+  isDraggingChatTrigger: false,
+  chatTriggerMoved: false,
+  chatTriggerPointerId: null,
+  chatTriggerOffsetX: 0,
+  chatTriggerOffsetY: 0,
   conversations: [],
   validationResult: null,
   readableScriptText: "",
@@ -60,6 +65,7 @@ const state = {
 };
 
 const API_BASE_URL = "http://127.0.0.1:8000";
+const CHAT_TRIGGER_POSITION_KEY = "xvg.chatTriggerPosition";
 
 const elements = {};
 
@@ -108,6 +114,7 @@ function initApp() {
   elements.finalScriptStatus = document.getElementById("finalScriptStatus");
   elements.exportWordButton = document.getElementById("exportWordButton");
   elements.confirmFinalScriptButton = document.getElementById("confirmFinalScriptButton");
+  elements.openPreviewFromReadableBtn = document.getElementById("openPreviewFromReadableBtn");
   elements.progressSteps = Array.from(document.querySelectorAll(".progress-step"));
   elements.structureTabs = Array.from(document.querySelectorAll(".structure-tab"));
   elements.structureViews = {
@@ -150,12 +157,10 @@ function initApp() {
   elements.renderScriptButton.addEventListener("click", renderReadableScript);
   elements.partialRenderTargetSelect.addEventListener("change", updateActionButtons);
   elements.partialRenderButton.addEventListener("click", renderPartialActOrScene);
-  document.getElementById("previewScriptBtn").addEventListener("click", openScriptPreviewModal);
+  elements.openPreviewFromReadableBtn.addEventListener("click", openScriptPreviewModal);
   document.getElementById("closeReadableScriptBtn").addEventListener("click", closeReadableScriptModal);
-  document.getElementById("closeReadableScriptFooterBtn").addEventListener("click", closeReadableScriptModal);
   document.getElementById("closePreviewBtn").addEventListener("click", closePreviewModal);
   document.getElementById("closeStructureBtn").addEventListener("click", closeStructureModal);
-  document.getElementById("modalResetBtn").addEventListener("click", closePreviewModal);
   elements.exportWordButton.addEventListener("click", exportFinalScriptToWord);
   elements.confirmFinalScriptButton.addEventListener("click", confirmFinalScript);
   elements.readableScriptModal.addEventListener("click", handleReadableScriptModalBackdropClick);
@@ -177,7 +182,8 @@ function initApp() {
   elements.adaptationDegree.addEventListener("input", handleAdaptationInputChange);
   elements.dialoguePreservationDegree.addEventListener("input", handleAdaptationInputChange);
 
-  elements.openChatBtn.addEventListener("click", () => toggleChatDrawer(true));
+  elements.openChatBtn.addEventListener("click", handleChatTriggerClick);
+  elements.openChatBtn.addEventListener("pointerdown", handleChatTriggerPointerDown);
   elements.closeChatBtn.addEventListener("click", () => toggleChatDrawer(false));
   elements.chatComposerForm.addEventListener("submit", handleChatSubmit);
 
@@ -190,6 +196,8 @@ function initApp() {
   loadAndRenderStyleOptions();
   checkBackendStylesApi();
   switchStructureTab("chapters");
+  initializeChatTriggerPosition();
+  window.addEventListener("resize", handleWindowResize);
   console.log("AI 小说转剧本工具前端已初始化。");
 }
 
@@ -1208,6 +1216,7 @@ function updateActionButtons() {
   const canGenerateYaml = hasEnoughChapters && !state.isGeneratingYaml;
   const hasYaml = Boolean(getCurrentYaml().trim());
   const canValidateYaml = hasYaml && !state.isValidatingYaml;
+  const canRenderScript = hasYaml && Boolean(state.validationResult?.valid) && !state.isValidatingYaml;
   const hasReadableScript = state.readableScriptValid && Boolean(state.readableScriptText.trim());
   const hasFinalScript = state.finalScriptConfirmed && Boolean(state.finalScriptText.trim());
   const canOpenPreview = hasReadableScript || hasFinalScript;
@@ -1233,19 +1242,19 @@ function updateActionButtons() {
   elements.downloadYamlButton.classList.toggle("disabled-action", !hasYaml);
   elements.downloadYamlButton.disabled = !hasYaml;
   elements.downloadYamlButton.setAttribute("aria-disabled", String(!hasYaml));
-  elements.renderScriptButton.classList.toggle("ready", hasYaml);
-  elements.renderScriptButton.classList.toggle("disabled-action", !hasYaml);
-  elements.renderScriptButton.disabled = !hasYaml;
-  elements.renderScriptButton.setAttribute("aria-disabled", String(!hasYaml));
+  elements.renderScriptButton.classList.toggle("ready", canRenderScript);
+  elements.renderScriptButton.classList.toggle("disabled-action", !canRenderScript);
+  elements.renderScriptButton.disabled = !canRenderScript;
+  elements.renderScriptButton.setAttribute("aria-disabled", String(!canRenderScript));
   elements.partialRenderTargetSelect.disabled = !hasYaml || !hasReadableScript || state.isPartialRendering;
   elements.partialRenderButton.classList.toggle("ready", canPartialRender);
   elements.partialRenderButton.classList.toggle("disabled-action", !canPartialRender);
   elements.partialRenderButton.disabled = !canPartialRender;
   elements.partialRenderButton.setAttribute("aria-disabled", String(!canPartialRender));
-  document.getElementById("previewScriptBtn").classList.toggle("ready", canOpenPreview);
-  document.getElementById("previewScriptBtn").classList.toggle("disabled-action", !canOpenPreview);
-  document.getElementById("previewScriptBtn").disabled = !canOpenPreview;
-  document.getElementById("previewScriptBtn").setAttribute("aria-disabled", String(!canOpenPreview));
+  elements.openPreviewFromReadableBtn.classList.toggle("ready", canOpenPreview);
+  elements.openPreviewFromReadableBtn.classList.toggle("disabled-action", !canOpenPreview);
+  elements.openPreviewFromReadableBtn.disabled = !canOpenPreview;
+  elements.openPreviewFromReadableBtn.setAttribute("aria-disabled", String(!canOpenPreview));
   elements.exportWordButton.classList.toggle("ready", hasFinalScript);
   elements.exportWordButton.classList.toggle("disabled-action", !hasFinalScript);
   elements.exportWordButton.disabled = !hasFinalScript;
@@ -3184,6 +3193,126 @@ function toggleChatDrawer(isOpen) {
     elements.chatInput.focus();
     renderChatStream();
   }
+}
+
+function initializeChatTriggerPosition() {
+  if (!elements.openChatBtn) {
+    return;
+  }
+  applyChatTriggerPosition(loadStoredChatTriggerPosition() || getDefaultChatTriggerPosition());
+}
+
+function getDefaultChatTriggerPosition() {
+  const top = 96;
+  const right = 28;
+  const buttonSize = 60;
+  return {
+    x: Math.max(16, window.innerWidth - right - buttonSize),
+    y: top,
+  };
+}
+
+function loadStoredChatTriggerPosition() {
+  try {
+    const raw = window.localStorage.getItem(CHAT_TRIGGER_POSITION_KEY);
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw);
+    if (!Number.isFinite(parsed?.x) || !Number.isFinite(parsed?.y)) {
+      return null;
+    }
+    return clampChatTriggerPosition(parsed.x, parsed.y);
+  } catch (error) {
+    return null;
+  }
+}
+
+function saveChatTriggerPosition(x, y) {
+  try {
+    window.localStorage.setItem(CHAT_TRIGGER_POSITION_KEY, JSON.stringify({ x, y }));
+  } catch (error) {
+    // Ignore storage failures and keep the current session position.
+  }
+}
+
+function clampChatTriggerPosition(x, y) {
+  const buttonWidth = elements.openChatBtn?.offsetWidth || 60;
+  const buttonHeight = elements.openChatBtn?.offsetHeight || 60;
+  const minX = 12;
+  const minY = 84;
+  const maxX = Math.max(minX, window.innerWidth - buttonWidth - 12);
+  const maxY = Math.max(minY, window.innerHeight - buttonHeight - 12);
+  return {
+    x: Math.min(Math.max(x, minX), maxX),
+    y: Math.min(Math.max(y, minY), maxY),
+  };
+}
+
+function applyChatTriggerPosition(position) {
+  const next = clampChatTriggerPosition(position.x, position.y);
+  elements.openChatBtn.style.left = `${next.x}px`;
+  elements.openChatBtn.style.top = `${next.y}px`;
+  elements.openChatBtn.style.right = "auto";
+}
+
+function handleChatTriggerPointerDown(event) {
+  if (event.button !== 0) {
+    return;
+  }
+  state.isDraggingChatTrigger = true;
+  state.chatTriggerMoved = false;
+  state.chatTriggerPointerId = event.pointerId;
+  const rect = elements.openChatBtn.getBoundingClientRect();
+  state.chatTriggerOffsetX = event.clientX - rect.left;
+  state.chatTriggerOffsetY = event.clientY - rect.top;
+  elements.openChatBtn.classList.add("dragging");
+  elements.openChatBtn.setPointerCapture(event.pointerId);
+  window.addEventListener("pointermove", handleChatTriggerPointerMove);
+  window.addEventListener("pointerup", handleChatTriggerPointerUp);
+  window.addEventListener("pointercancel", handleChatTriggerPointerUp);
+}
+
+function handleChatTriggerPointerMove(event) {
+  if (!state.isDraggingChatTrigger || event.pointerId !== state.chatTriggerPointerId) {
+    return;
+  }
+  const nextX = event.clientX - state.chatTriggerOffsetX;
+  const nextY = event.clientY - state.chatTriggerOffsetY;
+  const clamped = clampChatTriggerPosition(nextX, nextY);
+  applyChatTriggerPosition(clamped);
+  state.chatTriggerMoved = true;
+}
+
+function handleChatTriggerPointerUp(event) {
+  if (event.pointerId !== state.chatTriggerPointerId) {
+    return;
+  }
+  const rect = elements.openChatBtn.getBoundingClientRect();
+  saveChatTriggerPosition(rect.left, rect.top);
+  state.isDraggingChatTrigger = false;
+  state.chatTriggerPointerId = null;
+  elements.openChatBtn.classList.remove("dragging");
+  window.removeEventListener("pointermove", handleChatTriggerPointerMove);
+  window.removeEventListener("pointerup", handleChatTriggerPointerUp);
+  window.removeEventListener("pointercancel", handleChatTriggerPointerUp);
+}
+
+function handleChatTriggerClick(event) {
+  if (state.chatTriggerMoved) {
+    event.preventDefault();
+    state.chatTriggerMoved = false;
+    return;
+  }
+  toggleChatDrawer(true);
+}
+
+function handleWindowResize() {
+  if (!elements.openChatBtn) {
+    return;
+  }
+  const rect = elements.openChatBtn.getBoundingClientRect();
+  applyChatTriggerPosition({ x: rect.left, y: rect.top });
 }
 
 async function handleChatSubmit(event) {

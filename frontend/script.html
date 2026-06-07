@@ -239,6 +239,35 @@
     </div>
   </div>
 
+  <div class="chat-drawer" id="chatDrawer">
+    <div class="chat-drawer-header">
+      <div class="chat-drawer-title">
+        <p class="section-kicker">Dialogue</p>
+        <h3>AI 创作助理</h3>
+      </div>
+      <button type="button" class="drawer-close" id="closeChatBtn">×</button>
+    </div>
+
+    <div class="chat-drawer-body">
+      <div class="chat-stream" id="chatStream">
+        <div class="empty-state">尚未开始对话</div>
+      </div>
+    </div>
+
+    <div class="chat-drawer-footer">
+      <form id="chatComposerForm" class="drawer-composer">
+        <textarea id="chatInput" placeholder="基于当前剧本内容提问..." rows="3"></textarea>
+        <button type="submit" class="btn primary btn-sm" id="sendMessageBtn">发送</button>
+      </form>
+    </div>
+  </div>
+
+  <button type="button" class="floating-chat-trigger" id="openChatBtn" hidden>
+    <span class="chat-icon">💬</span>
+    <span class="chat-label">助理</span>
+    <span class="chat-badge" id="chatBadge" hidden>0</span>
+  </button>
+
   <script src="audio-player.js?v=20260607d"></script>
   <script src="script-app.js"></script>
 </body>

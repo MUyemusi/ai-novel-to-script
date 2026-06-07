@@ -1,4 +1,4 @@
-"""Notebook storage and mock conversation generation services."""
+"""Notebook storage and conversation generation services."""
 
 from __future__ import annotations
 
@@ -8,6 +8,16 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List
 from uuid import uuid4
+
+try:
+    from backend.config import get_llm_settings
+    from backend.services.llm_client import (
+        LLMGenerationError,
+        build_notebook_reply_with_llm,
+    )
+except ModuleNotFoundError:
+    from config import get_llm_settings
+    from services.llm_client import LLMGenerationError, build_notebook_reply_with_llm
 
 from .schema import (
     CONVERSATIONS_RESPONSE_SCHEMA,
@@ -86,12 +96,12 @@ def get_notebook_conversations(notebook_id: str) -> Dict[str, Any]:
 
 
 def append_conversation(notebook_id: str, message_text: str) -> Dict[str, Any]:
-    """Append a user message and a mock assistant reply."""
+    """Append a user message and generate an assistant reply."""
     notebook = _load_notebook_document(notebook_id)
     user_message = _build_message(role="user", content=message_text.strip())
     notebook["conversations"].append(user_message)
 
-    assistant_text = _build_mock_reply(notebook, message_text.strip())
+    assistant_text = _build_assistant_reply(notebook, message_text.strip())
     assistant_message = _build_message(role="assistant", content=assistant_text)
     notebook["conversations"].append(assistant_message)
     notebook["conversations"] = notebook["conversations"][-MAX_CONVERSATION_HISTORY:]
@@ -219,6 +229,16 @@ def _build_mock_reply(notebook: Dict[str, Any], user_message: str) -> str:
         f"“{user_message}”。当前笔记本累计保存 {history_size} 条消息，"
         "后续这里可以接入真实大模型来生成更深入的分析、整理与续写建议。"
     )
+
+
+def _build_assistant_reply(notebook: Dict[str, Any], user_message: str) -> str:
+    settings = get_llm_settings()
+    if settings.use_llm:
+        try:
+            return build_notebook_reply_with_llm(notebook)
+        except LLMGenerationError:
+            pass
+    return _build_mock_reply(notebook, user_message)
 
 
 def _notebook_path(notebook_id: str) -> Path:

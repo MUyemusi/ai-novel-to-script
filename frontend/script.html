@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>叙构 | AI 小说转剧本工具</title>
+  <link rel="stylesheet" href="script-styles.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="topbar">
+      <div class="brand-block">
+        <div class="brand-mark">
+          <p class="eyebrow">AI Novel To Script</p>
+          <h1>叙构</h1>
+        </div>
+        <p class="brand-subtitle">叙事之境，剧本之影，将章节整理为可编辑的剧本。</p>
+      </div>
+
+      <ol class="progress-steps" id="progressSteps" aria-label="流程进度">
+        <li class="progress-step active" data-step="1">
+          <span class="step-circle">1</span>
+          <span class="step-label">输入原文</span>
+        </li>
+        <li class="progress-step" data-step="2">
+          <span class="step-circle">2</span>
+          <span class="step-label">改编调音台</span>
+        </li>
+        <li class="progress-step" data-step="3">
+          <span class="step-circle">3</span>
+          <span class="step-label">生成 YAML</span>
+        </li>
+        <li class="progress-step" data-step="4">
+          <span class="step-circle">4</span>
+          <span class="step-label">清洗剧本</span>
+        </li>
+        <li class="progress-step" data-step="5">
+          <span class="step-circle">5</span>
+          <span class="step-label">预览剧本</span>
+        </li>
+      </ol>
+
+      <nav class="top-actions" aria-label="顶部操作">
+        <button type="button" class="btn secondary" id="openStartPageBtn">起始页</button>
+        <button type="button" class="btn secondary" id="openNotebookPageBtn">笔记本系统</button>
+        <button type="button" class="btn secondary" id="topLoadExampleBtn">加载示例</button>
+        <button type="button" class="btn disabled-action" id="previewScriptBtn" aria-disabled="true" disabled>预览最终剧本</button>
+      </nav>
+    </header>
+
+    <main class="workspace">
+      <section class="panel input-panel" aria-labelledby="inputTitle">
+        <div class="panel-heading">
+          <div>
+            <p class="section-kicker">Source</p>
+            <h2 id="inputTitle">小说原文</h2>
+          </div>
+          <div class="panel-badges">
+            <span class="word-count" id="wordCount">0 字</span>
+          </div>
+        </div>
+
+        <textarea id="novelInput" class="novel-input" placeholder="在这里粘贴小说文本……"></textarea>
+
+        <div class="input-toolbar">
+          <div class="input-actions">
+            <label class="file-button" for="txtUpload">上传 txt 文件</label>
+            <input type="file" id="txtUpload" accept=".txt,text/plain">
+            <button type="button" class="btn secondary" id="panelLoadExampleBtn">加载示例</button>
+            <button type="button" class="btn ghost" id="clearTextBtn">清空</button>
+          </div>
+          <div class="inline-actions">
+            <button type="button" class="btn primary action-wide" id="parseChaptersBtn">识别章节</button>
+            <button type="button" class="btn disabled-action action-wide" id="openStructureBtn" aria-disabled="true" disabled>结构预览</button>
+          </div>
+        </div>
+
+        <div class="status-line info" id="inputStatus">等待输入小说文本</div>
+      </section>
+
+      <div class="center-column">
+        <section class="panel style-panel" aria-labelledby="adaptationTitle">
+          <div class="panel-heading">
+            <div>
+              <p class="section-kicker">Adaptation</p>
+              <h2 id="adaptationTitle">改编调音台</h2>
+            </div>
+          </div>
+
+          <div class="style-selectors">
+            <div class="selector-group">
+              <label for="toneSelect" class="field-label">风格调性</label>
+              <select id="toneSelect" aria-label="风格调性选择"></select>
+            </div>
+
+            <div class="selector-group">
+              <label for="mediumSelect" class="field-label">适用场景</label>
+              <select id="mediumSelect" aria-label="适用场景选择"></select>
+            </div>
+          </div>
+
+          <div id="styleParameters" class="style-parameters">
+            <div class="parameter-group">
+              <div class="parameter-head">
+                <label for="toneIntensity" class="field-label">风格体现程度</label>
+                <span id="toneIntensityValue" class="parameter-value">50%</span>
+              </div>
+              <input type="range" id="toneIntensity" min="0" max="100" value="50" aria-label="风格体现程度">
+            </div>
+
+            <div class="parameter-group">
+              <div class="parameter-head">
+                <label for="adaptationDegree" class="field-label">适用场景调整自由度</label>
+                <span id="adaptationDegreeValue" class="parameter-value">50%</span>
+              </div>
+              <input type="range" id="adaptationDegree" min="0" max="100" value="50" aria-label="适用场景调整自由度">
+            </div>
+
+            <div class="parameter-group">
+              <div class="parameter-head">
+                <label for="dialoguePreservationDegree" class="field-label">原文对白保留度</label>
+                <span id="dialoguePreservationDegreeValue" class="parameter-value">60%</span>
+              </div>
+              <input type="range" id="dialoguePreservationDegree" min="0" max="100" value="60" aria-label="原文对白保留度">
+            </div>
+          </div>
+
+          <div id="adaptationSummary" class="adaptation-summary">
+            <p id="adaptationSummaryText" class="muted"></p>
+          </div>
+
+          <div class="panel-footer">
+            <div id="backendStatus" class="backend-status info" hidden>后端风格配置接口已连接。</div>
+            <button type="button" class="btn primary action-wide disabled-action" id="generateYamlBtn" aria-disabled="true" disabled>生成 YAML</button>
+          </div>
+        </section>
+      </div>
+
+      <section class="panel output-panel" aria-labelledby="yamlTitle">
+        <div class="panel-heading">
+          <div>
+            <p class="section-kicker">Output</p>
+            <h2 id="yamlTitle">YAML 结构</h2>
+          </div>
+          <span class="validation-badge" id="yamlStatusBadge">未生成</span>
+        </div>
+
+        <div class="yaml-message info" id="yamlMessage">识别至少 3 章后可生成 YAML。</div>
+        <textarea id="yamlOutput" class="yaml-output" readonly placeholder="生成后将在这里显示 YAML..."></textarea>
+
+        <div class="output-actions">
+          <button type="button" class="btn disabled-action" id="cleanScriptBtn" aria-disabled="true" disabled>清洗为剧本</button>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="previewModal" hidden>
+    <div class="script-paper" role="dialog" aria-modal="true" aria-labelledby="previewTitle">
+      <button type="button" class="modal-close" id="closePreviewBtn" aria-label="关闭预览">×</button>
+      <div class="modal-header">
+        <p class="section-kicker">Preview</p>
+        <h2 id="previewTitle">最终剧本预览</h2>
+      </div>
+      <div class="modal-body">
+        <h3 class="script-title" id="previewScriptName">《剧本预览》</h3>
+        <p class="muted" id="previewDescription">生成 YAML 后，可在这里查看最终剧本预览样式。</p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn ghost" id="modalResetBtn">重置</button>
+        <button type="button" class="btn secondary" disabled aria-disabled="true">下载 Word</button>
+        <button type="button" class="btn secondary" disabled aria-disabled="true">下载 PDF</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="structureModal" hidden>
+    <div class="script-paper structure-paper" role="dialog" aria-modal="true" aria-labelledby="structureModalTitle">
+      <button type="button" class="modal-close" id="closeStructureBtn" aria-label="关闭结构预览">×</button>
+      <div class="modal-header">
+        <p class="section-kicker">Structure</p>
+        <h2 id="structureModalTitle">结构预览</h2>
+      </div>
+      <div class="modal-body structure-modal-body">
+        <div class="structure-tabs" role="tablist" aria-label="结构预览标签">
+          <button type="button" class="structure-tab active" data-structure-tab="chapters" aria-selected="true">章节</button>
+          <button type="button" class="structure-tab" data-structure-tab="characters" aria-selected="false">人物</button>
+          <button type="button" class="structure-tab" data-structure-tab="summary" aria-selected="false">概览</button>
+        </div>
+
+        <div class="structure-panel-body">
+          <section class="structure-view active" id="chaptersView">
+            <div class="chapter-stats">
+              <div class="stat-card">
+                <span class="stat-label">识别章节数</span>
+                <strong id="chapterCount">0</strong>
+              </div>
+              <div class="stat-card neutral" id="chapterRequirement">
+                <span class="stat-label">状态</span>
+                <strong id="chapterRequirementText">尚未识别章节</strong>
+              </div>
+            </div>
+            <div class="chapter-message info" id="chapterMessage">输入小说文本后点击“识别章节”。</div>
+            <div class="chapter-list" id="chapterList">
+              <div class="empty-state">暂无章节结果</div>
+            </div>
+          </section>
+
+          <section class="structure-view" id="charactersView" hidden>
+            <div class="characters-table" id="charactersTable" hidden>
+              <h3>人物表</h3>
+              <div id="charactersList"></div>
+            </div>
+            <div class="empty-state" id="charactersEmptyState">生成 YAML 后，将在这里展示人物表。</div>
+          </section>
+
+          <section class="structure-view" id="summaryView" hidden>
+            <div class="script-summary" id="scriptSummary" hidden>
+              <div class="summary-item">
+                <span>章节数</span>
+                <strong id="summaryChapterCount">0</strong>
+              </div>
+              <div class="summary-item">
+                <span>场景数</span>
+                <strong id="summarySceneCount">0</strong>
+              </div>
+              <div class="summary-item">
+                <span>人物数</span>
+                <strong id="summaryCharacterCount">0</strong>
+              </div>
+              <div class="summary-item">
+                <span>覆盖率</span>
+                <strong id="summaryCoverageRate">-</strong>
+              </div>
+            </div>
+            <div class="empty-state" id="summaryEmptyState">识别章节后，将在这里展示结构概览。</div>
+          </section>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="script-app.js"></script>
+</body>
+</html>

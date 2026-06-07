@@ -7,6 +7,94 @@ from typing import Any
 
 
 WRAPPER_KEYS = ("result", "data", "screenplay_data")
+TONE_STYLE_MAP = {
+    "realistic": "现实",
+    "realism": "现实",
+    "real": "现实",
+    "现实": "现实",
+    "serious": "严肃",
+    "严肃": "严肃",
+    "comedic": "诙谐",
+    "comedy": "诙谐",
+    "humorous": "诙谐",
+    "诙谐": "诙谐",
+    "profound": "深刻",
+    "deep": "深刻",
+    "深刻": "深刻",
+    "romantic": "浪漫",
+    "romance": "浪漫",
+    "浪漫": "浪漫",
+    "suspense": "悬疑",
+    "suspenseful": "悬疑",
+    "thriller": "悬疑",
+    "悬疑": "悬疑",
+    "passionate": "热血",
+    "hot-blooded": "热血",
+    "热血": "热血",
+    "healing": "治愈",
+    "warm": "治愈",
+    "治愈": "治愈",
+    "cold": "冷峻",
+    "stern": "冷峻",
+    "dramatic": "冷峻",
+    "冷峻": "冷峻",
+    "poetic": "诗意",
+    "lyrical": "诗意",
+    "诗意": "诗意",
+}
+MEDIUM_MAP = {
+    "film": "影视剧",
+    "movie": "影视剧",
+    "cinema": "影视剧",
+    "tv": "影视剧",
+    "television": "影视剧",
+    "series": "影视剧",
+    "screenplay": "影视剧",
+    "电影": "影视剧",
+    "影视剧": "影视剧",
+    "short drama": "短剧",
+    "short-form": "短剧",
+    "short form": "短剧",
+    "short": "短剧",
+    "miniseries": "短剧",
+    "web series": "短剧",
+    "短剧": "短剧",
+    "stage play": "舞台剧",
+    "theater": "舞台剧",
+    "theatre": "舞台剧",
+    "舞台剧": "舞台剧",
+    "radio drama": "广播剧",
+    "podcast drama": "广播剧",
+    "audio drama": "广播剧",
+    "广播剧": "广播剧",
+    "storyboard": "分镜初稿",
+    "shot list": "分镜初稿",
+    "visual outline": "分镜初稿",
+    "分镜初稿": "分镜初稿",
+    "audiobook adaptation": "有声书改编",
+    "audio book adaptation": "有声书改编",
+    "audio adaptation": "有声书改编",
+    "有声书改编": "有声书改编",
+}
+ROLE_MAP = {
+    "protagonist": "主角",
+    "lead": "主角",
+    "hero": "主角",
+    "主角": "主角",
+    "deuteragonist": "重要配角",
+    "supporting": "配角",
+    "support": "配角",
+    "sidekick": "配角",
+    "配角": "配角",
+    "antagonist": "反派",
+    "villain": "反派",
+    "反派": "反派",
+    "narrator": "旁白",
+    "旁白": "旁白",
+    "unspecified": "未标注",
+    "unknown": "未标注",
+    "未标注": "未标注",
+}
 
 
 def normalize_llm_script_structure(
@@ -77,10 +165,10 @@ def _normalize_screenplay_identity(
     warnings: list[str],
 ) -> None:
     if not screenplay.get("title"):
-        screenplay["title"] = "Untitled screenplay"
+        screenplay["title"] = "未命名剧本"
         warnings.append("Filled missing screenplay title.")
     if not screenplay.get("type"):
-        screenplay["type"] = "screenplay"
+        screenplay["type"] = "剧本"
         warnings.append("Filled missing screenplay type.")
 
 
@@ -98,6 +186,27 @@ def _normalize_adaptation_settings(
     if not isinstance(screenplay.get("adaptation_settings"), dict):
         screenplay["adaptation_settings"] = {}
         warnings.append("Replaced invalid or missing adaptation_settings object.")
+
+    settings = screenplay["adaptation_settings"]
+    tone = settings.get("tone")
+    if not isinstance(tone, dict):
+        tone = {}
+        settings["tone"] = tone
+    target = settings.get("target")
+    if not isinstance(target, dict):
+        target = {}
+        settings["target"] = target
+    dialogue = settings.get("dialogue")
+    if not isinstance(dialogue, dict):
+        dialogue = {}
+        settings["dialogue"] = dialogue
+
+    tone_style = _map_label(tone.get("style"), TONE_STYLE_MAP)
+    if tone_style:
+        tone["style"] = tone_style
+    medium = _map_label(target.get("medium"), MEDIUM_MAP)
+    if medium:
+        target["medium"] = medium
 
 
 def _normalize_source_novel(
@@ -158,9 +267,9 @@ def _normalize_character(
         data.get("name")
         or data.get("character_name")
         or data.get("人物名")
-        or "Unnamed character"
+        or "未命名人物"
     )
-    data["role"] = data.get("role") or data.get("角色") or "unspecified"
+    data["role"] = _map_label(data.get("role") or data.get("角色"), ROLE_MAP) or "未标注"
     data["description"] = data.get("description") or data.get("描述") or ""
     data.setdefault("character_id", f"character_{index:03d}")
     return data
@@ -188,7 +297,7 @@ def _normalize_acts(
             act_data = deepcopy(act)
 
         act_data.setdefault("act_id", f"act_{act_index}")
-        act_data.setdefault("title", f"Act {act_index}")
+        act_data.setdefault("title", f"第 {act_index} 幕")
         act_data.setdefault("summary", "")
 
         scenes = act_data.get("scenes")
@@ -230,10 +339,10 @@ def _normalize_scene(
         data = deepcopy(scene)
 
     data.setdefault("scene_id", f"scene_{act_index}_{scene_index}")
-    data.setdefault("title", f"Scene {scene_index}")
+    data.setdefault("title", f"第 {scene_index} 场")
     data.setdefault("source_chapter_id", _chapter_id_for_scene(chapters, scene_offset))
-    data.setdefault("location", "Unspecified location")
-    data.setdefault("time", "Unspecified time")
+    data.setdefault("location", "待定场景")
+    data.setdefault("time", "待定时间")
     data.setdefault("summary", "")
     data["characters"] = _ensure_list(data.get("characters"))
     data["actions"] = _normalize_actions(data.get("actions"), warnings)
@@ -256,6 +365,15 @@ def _chapter_id_for_scene(
 
 def _ensure_list(value: Any) -> list[Any]:
     return value if isinstance(value, list) else []
+
+
+def _map_label(value: Any, mapping: dict[str, str]) -> str:
+    if not isinstance(value, str):
+        return ""
+    key = value.strip().lower()
+    if not key:
+        return ""
+    return mapping.get(key, value.strip())
 
 
 def _normalize_actions(value: Any, warnings: list[str]) -> list[Any]:

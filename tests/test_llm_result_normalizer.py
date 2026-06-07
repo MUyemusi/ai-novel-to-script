@@ -65,7 +65,11 @@ def test_missing_top_level_fields_are_filled_with_warnings():
     screenplay = normalized["screenplay"]
 
     assert screenplay["meta"]["generator"] == "llm"
-    assert screenplay["adaptation_settings"] == {}
+    assert screenplay["adaptation_settings"] == {
+        "tone": {},
+        "target": {},
+        "dialogue": {},
+    }
     assert screenplay["source_novel"]["chapter_count"] == 2
     assert screenplay["characters"][0]["name"] == "Lin"
     assert warnings
@@ -99,13 +103,13 @@ def test_characters_dict_is_converted_to_list():
     assert characters == [
         {
             "name": "Lin",
-            "role": "lead",
+            "role": "主角",
             "description": "",
             "character_id": "character_001",
         },
         {
             "name": "Shen",
-            "role": "supporting",
+            "role": "配角",
             "description": "",
             "character_id": "character_002",
         },
@@ -124,7 +128,7 @@ def test_character_string_item_is_converted_to_object():
 
     character = normalized["screenplay"]["characters"][0]
     assert character["name"] == "Lin"
-    assert character["role"] == "unspecified"
+    assert character["role"] == "未标注"
     assert character["description"] == ""
     assert any("character string" in warning for warning in warnings)
 
@@ -140,13 +144,33 @@ def test_act_and_scene_fields_are_filled():
     scene = normalized["screenplay"]["acts"][0]["scenes"][0]
 
     assert scene["scene_id"] == "scene_1_1"
-    assert scene["title"] == "Scene 1"
+    assert scene["title"] == "第 1 场"
     assert scene["source_chapter_id"] == "chapter_001"
-    assert scene["location"] == "Unspecified location"
-    assert scene["time"] == "Unspecified time"
+    assert scene["location"] == "待定场景"
+    assert scene["time"] == "待定时间"
     assert scene["actions"] == []
     assert scene["dialogues"] == []
     assert warnings
+
+
+def test_english_adaptation_and_role_labels_are_mapped_to_chinese():
+    normalized, _warnings = normalize_llm_script_structure(
+        {
+            "adaptation_settings": {
+                "tone": {"style": "dramatic", "intensity": 50},
+                "target": {"medium": "miniseries", "adaptation_degree": 50},
+                "dialogue": {"preservation_degree": 60},
+            },
+            "characters": [{"name": "Lin", "role": "protagonist"}],
+            "acts": [{"scenes": [{"summary": "A scene."}]}],
+        },
+        chapters=CHAPTERS,
+    )
+
+    screenplay = normalized["screenplay"]
+    assert screenplay["adaptation_settings"]["tone"]["style"] == "冷峻"
+    assert screenplay["adaptation_settings"]["target"]["medium"] == "短剧"
+    assert screenplay["characters"][0]["role"] == "主角"
 
 
 def test_dialogue_field_is_converted_to_dialogues():

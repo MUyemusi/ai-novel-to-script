@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>叙构 | 多笔记本记忆系统</title>
+  <link rel="stylesheet" href="notebook-styles.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="topbar">
+      <div class="brand-block">
+        <p class="eyebrow">Notebook Memory System</p>
+        <h1>叙构</h1>
+        <p class="brand-subtitle">在多个笔记本中保存对话、灵感和项目上下文。</p>
+      </div>
+
+      <div class="topbar-center">
+        <span class="topbar-pill">FastAPI + JSON/YAML</span>
+        <span class="topbar-pill">Mock AI Ready</span>
+        <span class="topbar-pill">Persistent Memory</span>
+      </div>
+
+      <div class="top-actions">
+        <button type="button" class="btn secondary" id="scriptGeneratorBtn">剧本生成页</button>
+        <button type="button" class="btn secondary" id="homeBtn">首页</button>
+        <button type="button" class="btn primary" id="newNotebookShortcutBtn">新建笔记本</button>
+      </div>
+    </header>
+
+    <main class="app-main">
+      <div class="status-banner info" id="statusBanner">正在加载笔记本列表……</div>
+
+      <section class="home-view" id="homeView">
+        <section class="panel hero-panel">
+          <div>
+            <p class="section-kicker">Overview</p>
+            <h2>多笔记本记忆系统</h2>
+          </div>
+          <p class="muted">把不同项目拆进不同笔记本，分别保存对话历史、摘要和上下文。点击某个笔记本后，会跳转到主剧本生成页继续创作。</p>
+          <div class="hero-metrics" id="heroMetrics">
+            <article class="metric-card">
+              <span>笔记本数量</span>
+              <strong id="homeNotebookCount">0</strong>
+            </article>
+            <article class="metric-card">
+              <span>累计消息</span>
+              <strong id="homeMessageCount">0</strong>
+            </article>
+            <article class="metric-card">
+              <span>最近更新时间</span>
+              <strong id="homeUpdatedAt">-</strong>
+            </article>
+          </div>
+        </section>
+
+        <div class="home-grid">
+          <section class="panel create-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="section-kicker">Create</p>
+                <h2>创建新笔记本</h2>
+              </div>
+            </div>
+
+            <form id="createNotebookForm" class="stack-form">
+              <label class="field-group">
+                <span class="field-label">笔记本名称</span>
+                <input id="notebookTitleInput" name="title" type="text" maxlength="80" placeholder="例如：长篇世界观设定">
+              </label>
+
+              <label class="field-group">
+                <span class="field-label">笔记本说明</span>
+                <textarea id="notebookDescriptionInput" name="description" rows="5" maxlength="240" placeholder="补充这个笔记本的用途、当前进度或写作方向。"></textarea>
+              </label>
+
+              <button type="submit" class="btn primary full-width" id="createNotebookBtn">创建笔记本</button>
+            </form>
+          </section>
+
+          <section class="panel notebooks-panel">
+            <div class="panel-heading">
+              <div>
+                <p class="section-kicker">Notebooks</p>
+                <h2>已有笔记本</h2>
+              </div>
+            </div>
+
+            <div class="notebook-grid" id="homeNotebookGrid"></div>
+          </section>
+        </div>
+      </section>
+
+      <section class="workspace-view" id="workspaceView" hidden>
+        <aside class="panel sidebar-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="section-kicker">Library</p>
+              <h2>笔记本列表</h2>
+            </div>
+          </div>
+
+          <div class="sidebar-actions">
+            <button type="button" class="btn secondary full-width" id="sidebarCreateBtn">新建笔记本</button>
+          </div>
+
+          <div class="sidebar-list" id="sidebarNotebookList"></div>
+        </aside>
+
+        <section class="panel chat-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="section-kicker">Dialogue</p>
+              <h2 id="chatNotebookTitle">请选择笔记本</h2>
+            </div>
+            <span class="validation-badge" id="chatMessageCount">0 条消息</span>
+          </div>
+
+          <div class="chat-stream" id="chatStream"></div>
+
+          <form id="chatComposerForm" class="composer-panel">
+            <textarea id="chatInput" rows="4" placeholder="输入你想记录或讨论的内容，例如人物设定、剧情卡点、摘要整理……"></textarea>
+            <div class="composer-actions">
+              <span class="muted">当前为 mock AI 回复，后续可接大模型。</span>
+              <button type="submit" class="btn primary" id="sendMessageBtn">发送消息</button>
+            </div>
+          </form>
+        </section>
+
+        <aside class="panel summary-panel">
+          <div class="panel-heading">
+            <div>
+              <p class="section-kicker">Insight</p>
+              <h2>笔记本信息</h2>
+            </div>
+          </div>
+
+          <div class="summary-block">
+            <span class="field-label">简介</span>
+            <p class="muted" id="summaryDescription">-</p>
+          </div>
+
+          <div class="summary-stats" id="summaryStats">
+            <article class="summary-card">
+              <span>消息数</span>
+              <strong id="summaryMessageCount">0</strong>
+            </article>
+            <article class="summary-card">
+              <span>创建时间</span>
+              <strong id="summaryCreatedAt">-</strong>
+            </article>
+            <article class="summary-card">
+              <span>最后更新</span>
+              <strong id="summaryUpdatedAt">-</strong>
+            </article>
+          </div>
+
+          <div class="summary-block">
+            <span class="field-label">摘要</span>
+            <p class="muted" id="summaryText">-</p>
+          </div>
+
+          <div class="summary-block">
+            <span class="field-label">最近消息预览</span>
+            <p class="muted" id="summaryLastMessage">-</p>
+          </div>
+        </aside>
+      </section>
+    </main>
+  </div>
+
+  <script src="notebook-app.js"></script>
+</body>
+</html>

@@ -153,6 +153,10 @@ SCRIPT_STATE_SCHEMA: Dict[str, Any] = {
             ]
         },
         "generated_characters": {"type": "array", "items": CHARACTER_PREVIEW_SCHEMA},
+        "readable_script_text": {"type": "string"},
+        "readable_script_valid": {"type": "boolean"},
+        "final_script_text": {"type": "string"},
+        "final_script_confirmed": {"type": "boolean"},
         "active_step": {"type": "integer", "minimum": 1, "maximum": 5},
         "updated_at": {"type": "string", "minLength": 1},
     },

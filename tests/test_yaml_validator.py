@@ -155,6 +155,26 @@ def test_low_chapter_coverage_returns_warning():
     )
 
 
+def test_act_source_chapters_are_used_as_coverage_fallback():
+    data = yaml.safe_load(valid_yaml_text(chapter_coverage_rate=1.0))
+    for act in data["screenplay"]["acts"]:
+        act["source_chapters"] = [
+            scene["source_chapter_id"]
+            for scene in act["scenes"]
+        ]
+        for scene in act["scenes"]:
+            scene.pop("source_chapter_id", None)
+
+    result = validate_yaml_text(yaml.safe_dump(data, allow_unicode=True))
+
+    assert result["valid"] is True
+    assert result["summary"]["chapter_coverage_rate"] == 1.0
+    assert any(
+        warning["message"] == "scene is missing source_chapter_id."
+        for warning in result["warnings"]
+    )
+
+
 def test_scene_count_mismatch_returns_warning():
     result = validate_yaml_text(valid_yaml_text(scene_count=99))
 

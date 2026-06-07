@@ -153,6 +153,10 @@ def test_post_script_state_persists_latest_workspace_snapshot(tmp_path, monkeypa
                 "character_id": "char_1",
             }
         ],
+        "readable_script_text": "《雨夜来信》\n\n第1幕：雨夜",
+        "readable_script_valid": True,
+        "final_script_text": "《雨夜来信》\n\n第1幕：确认稿",
+        "final_script_confirmed": True,
         "active_step": 3,
         "updated_at": "2026-06-06T10:00:00Z",
     }
@@ -163,11 +167,14 @@ def test_post_script_state_persists_latest_workspace_snapshot(tmp_path, monkeypa
     data = response.json()
     assert data["script_state"]["raw_text"] == script_state["raw_text"]
     assert data["script_state"]["generated_yaml"] == script_state["generated_yaml"]
+    assert data["script_state"]["readable_script_valid"] is True
+    assert data["script_state"]["final_script_confirmed"] is True
 
     history_response = client.get(f"/notebooks/{notebook_id}/conversations")
     history_data = history_response.json()
     assert history_data["script_state"]["active_step"] == 3
     assert history_data["script_state"]["adaptation_profile"]["medium"] == "影视剧"
+    assert history_data["script_state"]["final_script_text"] == script_state["final_script_text"]
 
 
 def test_post_conversation_keeps_only_latest_ten_messages(tmp_path, monkeypatch):

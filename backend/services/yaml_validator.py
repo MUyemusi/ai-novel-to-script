@@ -209,13 +209,33 @@ def _covered_chapters(acts: list[dict[str, Any]]) -> set[str]:
         scenes = act.get("scenes")
         if not isinstance(scenes, list):
             continue
+        act_chapter_ids = _chapter_ids_from_act(act)
         for scene in scenes:
             if not isinstance(scene, dict):
                 continue
-            chapter_id = scene.get("source_chapter_id")
-            if chapter_id:
-                covered.add(str(chapter_id))
+            chapter_ids = _chapter_ids_from_scene(scene) or act_chapter_ids
+            covered.update(chapter_ids)
     return covered
+
+
+def _chapter_ids_from_scene(scene: dict[str, Any]) -> set[str]:
+    chapter_id = scene.get("source_chapter_id")
+    if chapter_id:
+        return {str(chapter_id)}
+    source_chapters = scene.get("source_chapters")
+    if isinstance(source_chapters, list):
+        return {str(chapter_id) for chapter_id in source_chapters if chapter_id}
+    return set()
+
+
+def _chapter_ids_from_act(act: dict[str, Any]) -> set[str]:
+    source_chapters = act.get("source_chapters")
+    if isinstance(source_chapters, list):
+        return {str(chapter_id) for chapter_id in source_chapters if chapter_id}
+    source_chapter_id = act.get("source_chapter_id")
+    if source_chapter_id:
+        return {str(source_chapter_id)}
+    return set()
 
 
 def _coverage_rate(covered_count: int, chapter_count: int) -> float:

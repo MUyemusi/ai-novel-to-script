@@ -494,4 +494,12 @@ button {
   .welcome-copy p {
     font-size: 16px;
   }
+
+  .final-script-body {
+    padding: 20px;
+  }
+
+  .final-script-textarea {
+    min-height: 42vh;
+  }
 }

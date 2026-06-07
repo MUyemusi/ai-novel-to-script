@@ -47,6 +47,7 @@ const state = {
   generatedMode: "",
   generatedWarnings: [],
   previewReady: false,
+  readableScriptModalOpen: false,
   previewModalOpen: false,
   structureModalOpen: false,
   adaptationProfile: {
@@ -86,7 +87,7 @@ function initApp() {
   elements.validationValidBadge = document.getElementById("validationValidBadge");
   elements.validationMetrics = document.getElementById("validationMetrics");
   elements.validationIssues = document.getElementById("validationIssues");
-  elements.readableScriptPanel = document.getElementById("readableScriptPanel");
+  elements.readableScriptModal = document.getElementById("readableScriptModal");
   elements.readableScriptOutput = document.getElementById("readableScriptOutput");
   elements.readableScriptMeta = document.getElementById("readableScriptMeta");
   elements.partialRenderTargetSelect = document.getElementById("partialRenderTargetSelect");
@@ -150,11 +151,14 @@ function initApp() {
   elements.partialRenderTargetSelect.addEventListener("change", updateActionButtons);
   elements.partialRenderButton.addEventListener("click", renderPartialActOrScene);
   document.getElementById("previewScriptBtn").addEventListener("click", openScriptPreviewModal);
+  document.getElementById("closeReadableScriptBtn").addEventListener("click", closeReadableScriptModal);
+  document.getElementById("closeReadableScriptFooterBtn").addEventListener("click", closeReadableScriptModal);
   document.getElementById("closePreviewBtn").addEventListener("click", closePreviewModal);
   document.getElementById("closeStructureBtn").addEventListener("click", closeStructureModal);
   document.getElementById("modalResetBtn").addEventListener("click", closePreviewModal);
   elements.exportWordButton.addEventListener("click", exportFinalScriptToWord);
   elements.confirmFinalScriptButton.addEventListener("click", confirmFinalScript);
+  elements.readableScriptModal.addEventListener("click", handleReadableScriptModalBackdropClick);
   elements.previewModal.addEventListener("click", handleModalBackdropClick);
   elements.structureModal.addEventListener("click", handleStructureModalBackdropClick);
   document.addEventListener("keydown", handleGlobalKeydown);
@@ -389,7 +393,6 @@ async function generateYaml() {
     state.generatedMode = data.generation_mode || "";
     state.generatedWarnings = data.warnings || [];
     renderYamlResult(data);
-    showStatus(data.message || "剧本 YAML 生成成功。", "success");
     await persistScriptState({ immediate: true });
   } catch (error) {
     state.generatedYaml = "";
@@ -397,8 +400,8 @@ async function generateYaml() {
     state.generatedCharacters = [];
     state.generatedMode = "";
     state.generatedWarnings = [];
-    renderYamlError(error.message || "剧本 YAML 生成失败，请确认后端服务已启动。");
-    showStatus("剧本 YAML 生成失败，请检查文本和后端服务。", "error");
+    renderYamlError(error.message || "YAML 生成失败，请检查文本和后端服务。");
+    showStatus("YAML 生成失败，请检查文本和后端服务。", "error");
   } finally {
     state.isGeneratingYaml = false;
     updateActionButtons();
@@ -511,35 +514,11 @@ function renderYamlResult(data) {
   resetYamlValidation();
   resetReadableScript();
   resetFinalScriptText("已生成新的 YAML，最终稿已清空。请重新渲染并确认最终剧本。");
-  const warnings = data.warnings || [];
-  const modeLabel = formatGenerationMode(data.generation_mode, warnings);
-  const messageParts = [
-    modeLabel,
-    data.message || "剧本 YAML 生成成功。",
-    "最终稿已清空，请重新渲染并确认最终剧本。",
-  ].concat(warnings);
-
-  elements.yamlStatusBadge.textContent = modeLabel || "已生成";
-  renderYamlMessage(
-    messageParts.filter(Boolean).join(" | "),
-    warnings.length ? "warning" : "success",
-  );
+  elements.yamlStatusBadge.textContent = "已更新";
+  renderYamlMessage("YAML 已更新，可继续校验、下载或清洗为剧本。", "success");
   renderScriptSummary(data.summary || {});
   renderCharacters(data.characters || []);
   switchStructureTab(data.characters?.length ? "characters" : "summary");
-}
-
-function formatGenerationMode(mode, warnings = []) {
-  if (mode === "llm") {
-    return warnings.length ? "AI 生成成功，部分结构已自动修复" : "AI 生成";
-  }
-  if (mode === "rule_fallback") {
-    return "AI 生成不可用，已使用规则生成兜底";
-  }
-  if (mode === "rule") {
-    return "规则生成";
-  }
-  return "";
 }
 
 function renderScriptSummary(summary) {
@@ -678,19 +657,18 @@ function renderReadableScript() {
     state.readableScriptText = renderedText;
     state.readableScriptValid = true;
     elements.readableScriptOutput.value = renderedText;
-    elements.readableScriptPanel.hidden = false;
     elements.readableScriptMeta.textContent = `${renderedText.split("\n").length} 行`;
     renderPartialRenderTargets(screenplay);
     logReadableScriptDebug(yamlText, data, screenplay, readableData.source, readableData.fallbackEnabled);
-    renderYamlMessage("可读剧本已渲染，可直接复制。", "success");
+    renderYamlMessage("清洗剧本已准备完成。", "success");
+    openReadableScriptModal();
     updateActionButtons();
     scheduleScriptStatePersist();
   } catch (error) {
     state.readableScriptText = "";
     state.readableScriptValid = false;
-    elements.readableScriptPanel.hidden = false;
-    elements.readableScriptOutput.value = `渲染失败：${error.message || "YAML 解析失败，请先校验 YAML。"}`;
-    elements.readableScriptMeta.textContent = "渲染失败";
+    elements.readableScriptOutput.value = "";
+    elements.readableScriptMeta.textContent = "尚未渲染";
     renderYamlMessage("YAML 渲染失败，请检查格式或先点击校验。", "error");
     updateActionButtons();
     scheduleScriptStatePersist();
@@ -765,7 +743,6 @@ async function renderPartialActOrScene() {
     state.readableScriptText = updatedReadableText;
     state.readableScriptValid = true;
     elements.readableScriptOutput.value = updatedReadableText;
-    elements.readableScriptPanel.hidden = false;
     elements.readableScriptMeta.textContent = `${updatedReadableText.split("\n").length} 行`;
     renderPartialRenderTargets(currentData.screenplay, elements.partialRenderTargetSelect.value);
 
@@ -777,7 +754,7 @@ async function renderPartialActOrScene() {
         : `局部重渲染完成：${targetLabel}`,
       finalScriptSynced === false ? "warning" : "success",
     );
-    renderYamlMessage(`局部重渲染完成：${targetLabel}`, "success");
+    renderYamlMessage(`清洗剧本已更新：${targetLabel}`, finalScriptSynced === false ? "warning" : "success");
     scheduleScriptStatePersist();
   } catch (error) {
     renderPartialRenderStatus(error.message || "局部重渲染失败，请检查后端服务。", "error");
@@ -800,11 +777,21 @@ function parsePartialRenderTarget(value) {
     return null;
   }
   const parts = value.split(":");
-  if (parts[0] === "act" && parts.length === 2) {
-    return { type: "act", actIndex: Number(parts[1]) };
+  if (parts[0] === "act" && parts.length >= 2) {
+    return {
+      type: "act",
+      actIndex: Number(parts[1]),
+      firstSceneNumber: Number(parts[2] || 1),
+      sceneCount: Number(parts[3] || 0),
+    };
   }
-  if (parts[0] === "scene" && parts.length === 3) {
-    return { type: "scene", actIndex: Number(parts[1]), sceneIndex: Number(parts[2]) };
+  if (parts[0] === "scene" && parts.length >= 3) {
+    return {
+      type: "scene",
+      actIndex: Number(parts[1]),
+      sceneIndex: Number(parts[2]),
+      globalSceneNumber: Number(parts[3] || 1),
+    };
   }
   return null;
 }
@@ -916,28 +903,26 @@ function extractPartialReadableSection(readableText, target) {
 }
 
 function findPartialSectionStart(lines, target) {
-  const actHeading = `第${target.actIndex + 1}幕：`;
-  const actIndex = lines.findIndex((line) => line.startsWith(actHeading));
-  if (target.type === "act" || actIndex === -1) {
-    return actIndex;
+  if (target.type === "act") {
+    return lines.findIndex((line) => line.startsWith(`${target.firstSceneNumber}. `));
   }
 
-  const sceneHeading = `  场景${target.sceneIndex + 1}：`;
-  for (let index = actIndex + 1; index < lines.length; index += 1) {
-    if (lines[index].startsWith(`第${target.actIndex + 2}幕：`)) {
-      break;
-    }
-    if (lines[index].startsWith(sceneHeading)) {
-      return index;
-    }
-  }
-  return -1;
+  return lines.findIndex((line) => line.startsWith(`${target.globalSceneNumber}. `));
 }
 
 function findPartialSectionEnd(lines, target, startIndex) {
   if (target.type === "act") {
+    const nextSceneNumber = target.firstSceneNumber + target.sceneCount;
+    if (target.sceneCount > 0) {
+      const nextSceneIndex = lines.findIndex(
+        (line, index) => index > startIndex && line.startsWith(`${nextSceneNumber}. `),
+      );
+      if (nextSceneIndex !== -1) {
+        return trimTrailingBlankLine(lines, nextSceneIndex);
+      }
+    }
     for (let index = startIndex + 1; index < lines.length; index += 1) {
-      if (/^第\d+幕：/.test(lines[index])) {
+      if (/^\d+\.\s+/.test(lines[index])) {
         return trimTrailingBlankLine(lines, index);
       }
     }
@@ -945,7 +930,7 @@ function findPartialSectionEnd(lines, target, startIndex) {
   }
 
   for (let index = startIndex + 1; index < lines.length; index += 1) {
-    if (/^第\d+幕：/.test(lines[index]) || /^  场景\d+：/.test(lines[index])) {
+    if (/^\d+\.\s+/.test(lines[index])) {
       return trimTrailingBlankLine(lines, index);
     }
   }
@@ -967,6 +952,7 @@ function openScriptPreviewModal() {
     return;
   }
 
+  closeReadableScriptModal();
   elements.finalScriptTextarea.value = sourceText;
   elements.finalScriptStatus.textContent = state.finalScriptConfirmed
     ? "已载入上次确认的最终剧本，可继续编辑。"
@@ -1033,6 +1019,10 @@ function exportFinalScriptToWord() {
 function handleGlobalKeydown(event) {
   if (event.key === "Escape" && state.previewModalOpen) {
     closePreviewModal();
+    return;
+  }
+  if (event.key === "Escape" && state.readableScriptModalOpen) {
+    closeReadableScriptModal();
   }
 }
 
@@ -1152,13 +1142,13 @@ function resetYamlValidation() {
 }
 
 function resetReadableScript() {
-  if (!elements.readableScriptPanel) {
+  if (!elements.readableScriptModal) {
     return;
   }
 
   state.readableScriptText = "";
   state.readableScriptValid = false;
-  elements.readableScriptPanel.hidden = true;
+  closeReadableScriptModal();
   elements.readableScriptOutput.value = "";
   elements.readableScriptMeta.textContent = "尚未渲染";
   elements.partialRenderTargetSelect.innerHTML = '<option value="">选择要重渲染的幕或场</option>';
@@ -1194,7 +1184,6 @@ function restoreReadableAndFinalScriptState(scriptState) {
 
   if (readableText) {
     elements.readableScriptOutput.value = readableText;
-    elements.readableScriptPanel.hidden = false;
     elements.readableScriptMeta.textContent = readableValid
       ? `${readableText.split("\n").length} 行`
       : "已恢复但未确认有效";
@@ -1266,91 +1255,380 @@ function updateActionButtons() {
 
 function buildReadableScriptText(screenplayLike) {
   const screenplay = extractScreenplayRoot(screenplayLike) || {};
-  const title =
-    stringifyValue(screenplay.meta?.title || screenplay.title || screenplay.meta?.name || screenplay.name) ||
-    "未命名剧本";
   const acts = extractActs(screenplay);
-  const lines = [`《${title}》`, ""];
+  const lines = [];
 
   if (!acts.length) {
-    lines.push("暂无场景");
+    lines.push("暂无场景。");
     return lines.join("\n");
   }
 
   let hasAnyScene = false;
+  let globalSceneNumber = 1;
   acts.forEach((act, actIndex) => {
-    const actTitle = stringifyValue(act.title || act.name || act.heading || act.act_id || act.act_number) || `第${actIndex + 1}幕`;
     const scenes = extractScenes(act);
-    const actChapterLabel = collectActChapterIds(act, scenes);
-
-    lines.push(`第${actIndex + 1}幕：${actTitle}（来源章节：${actChapterLabel}）`);
-    if (act.summary || act.description) {
-      lines.push(`  概述：${stringifyValue(act.summary || act.description)}`);
-    }
 
     if (!scenes.length) {
-      lines.push("  暂无场景");
-      lines.push("");
       return;
     }
 
     hasAnyScene = true;
     scenes.forEach((scene, sceneIndex) => {
-      const sceneTitle = getSceneTitle(scene, sceneIndex);
-      const chapterId = getSceneChapterId(scene);
-      const location = stringifyValue(scene.location || scene.place || scene.setting);
-      const time = stringifyValue(scene.time || scene.time_of_day || scene.period);
-      const characters = extractCharacters(scene, screenplay);
-      const actions = extractActions(scene);
-      const beats = extractBeats(scene);
+      if (lines.length) {
+        lines.push("切至：", "");
+      }
+
+      const sceneHeading = buildSceneHeading(scene, sceneIndex, globalSceneNumber);
+      const narrativeParagraphs = buildSceneNarrativeParagraphs(scene);
       const dialogues = extractDialogues(scene);
 
-      lines.push(`  第${sceneIndex + 1}场：${sceneTitle}（来源章节：${chapterId}）`);
-      if (location || time) {
-        lines.push(`    时空：${location || "未注明地点"} / ${time || "未注明时间"}`);
-      }
-      if (scene.conflict) {
-        lines.push(`    冲突：${stringifyValue(scene.conflict)}`);
-      }
-      if (scene.summary || scene.description) {
-        lines.push(`    场景概述：${stringifyValue(scene.summary || scene.description)}`);
-      }
-      lines.push(characters.length ? `    角色：${characters.join("、")}` : "    角色：暂无角色");
+      lines.push(`${globalSceneNumber}. ${sceneHeading}`, "");
 
-      if (actions.length) {
-        lines.push("    动作 / 旁白：");
-        actions.forEach((action) => {
-          lines.push(`      ${action}`);
+      if (narrativeParagraphs.length) {
+        narrativeParagraphs.forEach((paragraph) => {
+          lines.push(paragraph, "");
         });
       }
 
-      const nonDialogueBeats = beats.filter((beat) => !isDialogueBeat(beat));
-      if (nonDialogueBeats.length) {
-        lines.push("    节拍：");
-        nonDialogueBeats.forEach((beat) => {
-          lines.push(`      ${formatBeat(beat)}`);
-        });
-      }
+      dialogues.forEach((dialogue) => {
+        appendDialogueBlock(lines, dialogue);
+      });
 
-      if (dialogues.length) {
-        lines.push("    对白：");
-        dialogues.forEach((dialogue) => {
-          const characterName = stringifyValue(dialogue.character || dialogue.speaker || dialogue.name) || "旁白";
-          const lineText = stringifyValue(dialogue.line || dialogue.text || dialogue.dialogue || dialogue.content) || "暂无对白";
-          lines.push(`      ${characterName}：${lineText}`);
-        });
-      } else {
-        lines.push("    【提示】本场暂无对白，可在稿纸中继续补写。");
-      }
-      lines.push("");
+      globalSceneNumber += 1;
     });
   });
 
   if (!hasAnyScene) {
-    return [`《${title}》`, "", "暂无场景"].join("\n");
+    return "暂无场景。";
   }
 
   return lines.join("\n").trimEnd();
+}
+
+function buildSceneHeading(scene, sceneIndex, globalSceneNumber) {
+  const slugline = stringifyValue(scene?.slugline || scene?.slug_line || scene?.heading);
+  if (slugline) {
+    return normalizeSlugline(slugline);
+  }
+
+  const locationValue = stringifyValue(scene?.location || scene?.place || scene?.setting);
+  const { sceneType, place } = extractSceneTypeAndPlace(scene, locationValue);
+  const timeLabel = normalizeSceneTimeLabel(scene?.time || scene?.time_of_day || scene?.period);
+  const safePlace = place || normalizeSceneFallbackPlace(scene, sceneIndex, globalSceneNumber);
+
+  return [sceneType || "场景", safePlace, timeLabel].filter(Boolean).join(" ");
+}
+
+function normalizeSlugline(value) {
+  return value
+    .replace(/\bINT\.?\b/gi, "内景")
+    .replace(/\bEXT\.?\b/gi, "外景")
+    .replace(/\bINT\/EXT\.?\b/gi, "内外景")
+    .replace(/\bEXT\/INT\.?\b/gi, "外内景")
+    .replace(/\s*-\s*/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function extractSceneTypeAndPlace(scene, locationValue) {
+  const explicitType = mapSceneTypeLabel(
+    scene?.interior_exterior
+      || scene?.int_ext
+      || scene?.scene_type
+      || scene?.scene_kind
+      || scene?.space_type,
+  );
+
+  const normalizedLocation = locationValue.trim();
+  const prefixedMatch = normalizedLocation.match(/^(内景|外景|内外景|外内景|内|外)\s*[-:：]?\s*(.+)$/);
+  if (prefixedMatch) {
+    return {
+      sceneType: mapSceneTypeLabel(prefixedMatch[1]),
+      place: prefixedMatch[2].trim(),
+    };
+  }
+
+  return {
+    sceneType: explicitType || "场景",
+    place: normalizeScenePlace(normalizedLocation),
+  };
+}
+
+function mapSceneTypeLabel(value) {
+  const label = stringifyValue(value).trim().toLowerCase();
+  if (!label) return "";
+  if (label === "内" || label === "interior" || label === "inside" || label === "int" || label === "interior scene" || label === "内景") {
+    return "内景";
+  }
+  if (label === "外" || label === "exterior" || label === "outside" || label === "ext" || label === "exterior scene" || label === "外景") {
+    return "外景";
+  }
+  if (label === "int/ext" || label === "ext/int" || label === "mixed" || label === "内外景" || label === "外内景") {
+    return "内外景";
+  }
+  return stringifyValue(value).trim();
+}
+
+function normalizeScenePlace(value) {
+  const place = stringifyValue(value).trim();
+  if (!place || place === "待定场景" || place.toLowerCase() === "unknown") {
+    return "";
+  }
+  return place;
+}
+
+function normalizeSceneFallbackPlace(scene, sceneIndex, globalSceneNumber) {
+  const sceneTitle = getSceneTitle(scene, sceneIndex);
+  if (sceneTitle && !/^第\s*\d+\s*场$/.test(sceneTitle)) {
+    return sceneTitle;
+  }
+  return `场景${globalSceneNumber}`;
+}
+
+function normalizeSceneTimeLabel(value) {
+  const raw = stringifyValue(value).trim();
+  const lower = raw.toLowerCase();
+  if (!raw || raw === "待定时间" || lower === "unknown") {
+    return "";
+  }
+
+  const map = {
+    day: "日",
+    daytime: "日",
+    morning: "晨",
+    noon: "午",
+    afternoon: "下午",
+    dusk: "黄昏",
+    evening: "晚",
+    night: "夜",
+    midnight: "深夜",
+    dawn: "黎明",
+    sunrise: "清晨",
+    sunset: "傍晚",
+  };
+  return map[lower] || raw;
+}
+
+function buildSceneNarrativeParagraphs(scene) {
+  const paragraphs = [];
+  appendParagraphIfPresent(paragraphs, scene?.summary);
+  appendParagraphIfPresent(paragraphs, scene?.description);
+  appendParagraphList(paragraphs, scene?.actions);
+  appendParagraphIfPresent(paragraphs, scene?.action);
+  appendParagraphIfPresent(paragraphs, scene?.narration);
+  extractBeats(scene)
+    .filter((beat) => !isDialogueBeat(beat))
+    .forEach((beat) => appendBeatNarrativeParagraphs(paragraphs, beat));
+
+  return uniqueParagraphs(paragraphs);
+}
+
+function appendParagraphList(target, value) {
+  if (!Array.isArray(value)) {
+    appendParagraphIfPresent(target, value);
+    return;
+  }
+  value.forEach((item) => appendParagraphIfPresent(target, item));
+}
+
+function appendParagraphIfPresent(target, value) {
+  const text = formatNarrativeParagraph(value);
+  if (text) {
+    target.push(text);
+  }
+}
+
+function appendBeatNarrativeParagraphs(target, beat) {
+  if (typeof beat === "string" || typeof beat === "number") {
+    appendParagraphIfPresent(target, beat);
+    return;
+  }
+  if (!beat || typeof beat !== "object") {
+    return;
+  }
+
+  const candidates = [
+    beat.description,
+    beat.action,
+    beat.narration,
+    beat.summary,
+    beat.content,
+    beat.text,
+    beat.line,
+  ];
+  candidates.forEach((candidate) => appendParagraphIfPresent(target, candidate));
+}
+
+function formatNarrativeParagraph(value) {
+  if (typeof value === "string" || typeof value === "number") {
+    const text = stringifyValue(value).trim();
+    return text ? ensureSentenceEnding(text) : "";
+  }
+  if (value && typeof value === "object") {
+    const text = stringifyValue(
+      value.content
+        || value.text
+        || value.action
+        || value.narration
+        || value.description
+        || value.summary
+        || value.line,
+    ).trim();
+    return text ? ensureSentenceEnding(text) : "";
+  }
+  return "";
+}
+
+function ensureSentenceEnding(text) {
+  if (!text) {
+    return "";
+  }
+  return /[。！？!?…]$/.test(text) ? text : `${text}。`;
+}
+
+function uniqueParagraphs(values) {
+  const seen = new Set();
+  const result = [];
+  values.forEach((value) => {
+    const text = stringifyValue(value).trim();
+    if (!text) {
+      return;
+    }
+    const key = text.replace(/\s+/g, " ");
+    if (seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    result.push(text);
+  });
+  return result;
+}
+
+function appendDialogueBlock(lines, dialogue) {
+  const parsedDialogue = normalizeDialogueDisplay(dialogue);
+  const characterName = parsedDialogue.character || "旁白";
+  const lineText = parsedDialogue.line || "……";
+  const parenthetical = stringifyValue(
+    parsedDialogue.parenthetical
+      || dialogue.parenthetical
+      || dialogue.emotion
+      || dialogue.tone
+      || dialogue.mood
+      || dialogue.语气
+      || dialogue.状态,
+  );
+
+  lines.push(characterName);
+  if (parenthetical) {
+    lines.push(`（${parenthetical}）`);
+  }
+  lines.push(lineText, "");
+}
+
+function normalizeDialogueDisplay(dialogue) {
+  const fallbackCharacter = stringifyValue(dialogue.character || dialogue.speaker || dialogue.name) || "旁白";
+  const fallbackLine = stringifyValue(dialogue.line || dialogue.text || dialogue.dialogue || dialogue.content) || "……";
+  const rawParenthetical = stringifyValue(
+    dialogue.parenthetical
+      || dialogue.emotion
+      || dialogue.tone
+      || dialogue.mood
+      || dialogue.语气
+      || dialogue.状态,
+  );
+  if (!isNarratorLikeName(fallbackCharacter)) {
+    return {
+      character: fallbackCharacter,
+      line: fallbackLine,
+      parenthetical: rawParenthetical,
+    };
+  }
+
+  const parsed = parseNarrativeDialogueLine(fallbackLine);
+  if (!parsed) {
+    return {
+      character: fallbackCharacter,
+      line: fallbackLine,
+      parenthetical: rawParenthetical,
+    };
+  }
+
+  return {
+    character: parsed.character,
+    line: parsed.line,
+    parenthetical: parsed.parenthetical || rawParenthetical,
+  };
+}
+
+function isNarratorLikeName(value) {
+  const name = stringifyValue(value).trim();
+  return !name || name === "旁白" || /^narrator$/i.test(name);
+}
+
+function parseNarrativeDialogueLine(value) {
+  const text = stringifyValue(value).trim();
+  if (!text) {
+    return null;
+  }
+
+  const sanitizedText = text.replace(/^旁白\s*[:：]?\s*/, "").trim();
+  const match = sanitizedText.match(
+    /^([\u4e00-\u9fa5A-Za-z0-9·・\-_]{1,16})([^“”"「」]{0,64}?)(?:(?:，|,)?(?:低声|轻声|冷冷地|平静地|缓缓地|轻轻地|沉声|压低声音|笑着|说道|说着|问道|问|回答|答道|喊道|道|说))?\s*[：:，,]?\s*[“"「]?(.+?)[”"」]?$/,
+  );
+  if (!match) {
+    return null;
+  }
+
+  const character = stringifyValue(match[1]).trim();
+  const stageText = stringifyValue(match[2]).trim();
+  const quotedLine = stringifyValue(match[3]).trim();
+  if (!character || !quotedLine) {
+    return null;
+  }
+
+  return {
+    character,
+    parenthetical: normalizeDialogueParenthetical(stageText),
+    line: ensureDialogueQuotes(quotedLine),
+  };
+}
+
+function normalizeDialogueParenthetical(value) {
+  const text = stringifyValue(value).trim().replace(/^[，,\s]+|[，,\s]+$/g, "");
+  if (!text) {
+    return "";
+  }
+
+  const shortEmotionMatch = text.match(/^(.{1,10}?着)/);
+  if (shortEmotionMatch) {
+    return shortEmotionMatch[1];
+  }
+
+  const compact = text.split(/[，。；、]/)[0].trim();
+  if (compact.length <= 12) {
+    return compact;
+  }
+  return text;
+}
+
+function ensureDialogueQuotes(value) {
+  const text = stringifyValue(value).trim();
+  if (!text) {
+    return "……";
+  }
+
+  const stripped = text
+    .replace(/^[\s"'“”‘’「」『』]+/, "")
+    .replace(/[\s"'“”‘’「」『』]+$/, "")
+    .trim();
+  if (!stripped) {
+    return "……";
+  }
+
+  if (/^[“「『].*[”」』]$/.test(text)) {
+    return text;
+  }
+  return `“${stripped}”`;
 }
 
 function extractScreenplayRoot(parsedYaml) {
@@ -1413,7 +1691,9 @@ function extractDialogues(scene) {
         line: beat.line || beat.text || beat.dialogue || beat.content,
       });
     });
-  return dialogues.filter((dialogue) => stringifyValue(dialogue.line || dialogue.text || dialogue.dialogue || dialogue.content));
+  return dedupeDialogues(
+    dialogues.filter((dialogue) => stringifyValue(dialogue.line || dialogue.text || dialogue.dialogue || dialogue.content)),
+  );
 }
 
 function appendDialogueItems(target, value) {
@@ -1432,6 +1712,27 @@ function appendDialogueItems(target, value) {
       });
     }
   });
+}
+
+function dedupeDialogues(dialogues) {
+  const seen = new Set();
+  const result = [];
+
+  dialogues.forEach((dialogue) => {
+    const normalized = normalizeDialogueDisplay(dialogue);
+    const key = [
+      stringifyValue(normalized.character).trim(),
+      stringifyValue(normalized.parenthetical).trim(),
+      stringifyValue(normalized.line).trim(),
+    ].join("::");
+    if (!key || seen.has(key)) {
+      return;
+    }
+    seen.add(key);
+    result.push(dialogue);
+  });
+
+  return result;
 }
 
 function extractBeats(scene) {
@@ -1606,14 +1907,17 @@ function parseCurrentScreenplayYaml() {
 function renderPartialRenderTargets(screenplay, selectedValue = "") {
   const acts = extractActs(screenplay);
   const options = ['<option value="">选择要重渲染的幕或场</option>'];
+  let globalSceneNumber = 1;
 
   acts.forEach((act, actIndex) => {
     const actTitle = escapeHtml(stringifyValue(act.title || act.name || act.heading || act.act_id) || `第${actIndex + 1}幕`);
-    options.push(`<option value="act:${actIndex}">第${actIndex + 1}幕：${actTitle}</option>`);
+    const scenes = extractScenes(act);
+    options.push(`<option value="act:${actIndex}:${globalSceneNumber}:${scenes.length}">第${actIndex + 1}幕：${actTitle}</option>`);
 
-    extractScenes(act).forEach((scene, sceneIndex) => {
+    scenes.forEach((scene, sceneIndex) => {
       const sceneTitle = escapeHtml(getSceneTitle(scene, sceneIndex));
-      options.push(`<option value="scene:${actIndex}:${sceneIndex}">第${actIndex + 1}幕 / 第${sceneIndex + 1}场：${sceneTitle}</option>`);
+      options.push(`<option value="scene:${actIndex}:${sceneIndex}:${globalSceneNumber}">第${actIndex + 1}幕 / 第${sceneIndex + 1}场：${sceneTitle}</option>`);
+      globalSceneNumber += 1;
     });
   });
 
@@ -2983,6 +3287,18 @@ function closePreviewModal() {
   updateProgressStep();
 }
 
+function openReadableScriptModal() {
+  elements.readableScriptModal.hidden = false;
+  state.readableScriptModalOpen = true;
+  updateProgressStep();
+}
+
+function closeReadableScriptModal() {
+  state.readableScriptModalOpen = false;
+  elements.readableScriptModal.hidden = true;
+  updateProgressStep();
+}
+
 function closeScriptPreviewModal() {
   closePreviewModal();
 }
@@ -2999,6 +3315,12 @@ function openPreviewModal() {
 function handleModalBackdropClick(event) {
   if (event.target === elements.previewModal) {
     closePreviewModal();
+  }
+}
+
+function handleReadableScriptModalBackdropClick(event) {
+  if (event.target === elements.readableScriptModal) {
+    closeReadableScriptModal();
   }
 }
 
@@ -3146,6 +3468,10 @@ function updateProgressStep() {
 function getActiveStep() {
   if (state.previewModalOpen) {
     return 5;
+  }
+
+  if (state.readableScriptModalOpen || state.readableScriptValid) {
+    return 4;
   }
 
   if (state.generatedYaml) {

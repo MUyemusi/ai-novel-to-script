@@ -343,9 +343,13 @@ def _normalize_scene(
     data.setdefault("source_chapter_id", _chapter_id_for_scene(chapters, scene_offset))
     data.setdefault("location", "待定场景")
     data.setdefault("time", "待定时间")
+    data.setdefault("interior_exterior", "")
+    data.setdefault("slugline", "")
+    data.setdefault("transition", "")
     data.setdefault("summary", "")
     data["characters"] = _ensure_list(data.get("characters"))
     data["actions"] = _normalize_actions(data.get("actions"), warnings)
+    data["beats"] = _normalize_beats(data.get("beats", data.get("beat")), warnings)
     data["dialogues"] = _normalize_dialogues(
         data.get("dialogues", data.get("dialogue")),
         warnings,
@@ -401,7 +405,7 @@ def _normalize_dialogues(value: Any, warnings: list[str]) -> list[dict[str, Any]
     dialogues = []
     for item in items:
         if isinstance(item, str):
-            dialogues.append({"character": "Narrator", "line": item})
+            dialogues.append({"character": "旁白", "line": item})
             warnings.append("Converted dialogue string item to object.")
         elif isinstance(item, dict):
             dialogue = deepcopy(item)
@@ -410,7 +414,7 @@ def _normalize_dialogues(value: Any, warnings: list[str]) -> list[dict[str, Any]
                 or dialogue.get("speaker")
                 or dialogue.get("name")
                 or dialogue.get("人物")
-                or "Narrator"
+                or "旁白"
             )
             dialogue["line"] = (
                 dialogue.get("line")
@@ -423,6 +427,53 @@ def _normalize_dialogues(value: Any, warnings: list[str]) -> list[dict[str, Any]
         else:
             warnings.append("Skipped invalid dialogue item.")
     return dialogues
+
+
+def _normalize_beats(value: Any, warnings: list[str]) -> list[dict[str, Any]]:
+    if isinstance(value, list):
+        items = value
+    elif isinstance(value, dict):
+        items = [value]
+        warnings.append("Converted beat object to list.")
+    elif isinstance(value, str):
+        items = [{"type": "action", "content": value}]
+        warnings.append("Converted beat string to beat object.")
+    else:
+        if value is not None:
+            warnings.append("Replaced invalid beats with an empty list.")
+        return []
+
+    normalized_beats = []
+    for item in items:
+        if isinstance(item, str):
+            normalized_beats.append({"type": "action", "content": item})
+            warnings.append("Converted beat string item to object.")
+            continue
+        if not isinstance(item, dict):
+            warnings.append("Skipped invalid beat item.")
+            continue
+
+        beat = deepcopy(item)
+        beat["type"] = (
+            beat.get("type")
+            or beat.get("kind")
+            or beat.get("category")
+            or ("dialogue" if beat.get("line") or beat.get("dialogue") or beat.get("台词") else "action")
+        )
+        beat["content"] = (
+            beat.get("content")
+            or beat.get("text")
+            or beat.get("action")
+            or beat.get("narration")
+            or beat.get("description")
+            or beat.get("summary")
+            or beat.get("line")
+            or beat.get("dialogue")
+            or beat.get("台词")
+            or ""
+        )
+        normalized_beats.append(beat)
+    return normalized_beats
 
 
 def _recalculate_quality_report(

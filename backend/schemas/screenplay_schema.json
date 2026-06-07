@@ -57,6 +57,9 @@
                     "scene_id": { "type": "string" },
                     "title": { "type": "string" },
                     "source_chapter_id": { "type": "string" },
+                    "interior_exterior": { "type": "string" },
+                    "slugline": { "type": "string" },
+                    "transition": { "type": "string" },
                     "location": { "type": "string" },
                     "time": { "type": "string" },
                     "summary": { "type": "string" },
@@ -66,6 +69,21 @@
                     "actions": {
                       "type": "array"
                     },
+                    "beats": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "additionalProperties": true,
+                        "properties": {
+                          "type": { "type": "string" },
+                          "content": { "type": "string" },
+                          "description": { "type": "string" },
+                          "action": { "type": "string" },
+                          "character": { "type": "string" },
+                          "line": { "type": "string" }
+                        }
+                      }
+                    },
                     "dialogues": {
                       "type": "array",
                       "items": {
@@ -73,7 +91,8 @@
                         "additionalProperties": true,
                         "properties": {
                           "character": { "type": "string" },
-                          "line": { "type": "string" }
+                          "line": { "type": "string" },
+                          "parenthetical": { "type": "string" }
                         }
                       }
                     }

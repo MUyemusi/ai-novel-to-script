@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>叙构 | AI 小说转剧本工具</title>
-  <link rel="stylesheet" href="script-styles.css">
+  <link rel="stylesheet" href="script-styles.css?v=20260607e">
 </head>
 <body>
   <div class="page-shell">
@@ -162,22 +162,34 @@
           <div class="validation-issues" id="validationIssues"></div>
         </section>
 
-        <section class="readable-script-panel" id="readableScriptPanel" hidden aria-labelledby="readableScriptTitle">
-          <div class="readable-script-heading">
-            <h3 id="readableScriptTitle">可读剧本</h3>
-            <span id="readableScriptMeta">尚未渲染</span>
-          </div>
-          <div class="partial-render-controls">
-            <select id="partialRenderTargetSelect" aria-label="选择局部重渲染范围">
-              <option value="">选择要重渲染的幕或场</option>
-            </select>
-            <button type="button" class="btn secondary disabled-action" id="partialRenderButton" aria-disabled="true" disabled>局部重渲染</button>
-          </div>
-          <div class="partial-render-status info" id="partialRenderStatus" hidden>选择幕或场后，可仅重渲染该部分。</div>
-          <textarea id="readableScriptOutput" class="readable-script-output" readonly placeholder="点击“清洗为剧本”后，将在这里显示可复制的剧本文本。"></textarea>
-        </section>
       </section>
     </main>
+  </div>
+
+  <div class="modal-backdrop" id="readableScriptModal" hidden>
+    <div class="script-paper readable-script-paper" role="dialog" aria-modal="true" aria-labelledby="readableScriptTitle">
+      <button type="button" class="modal-close" id="closeReadableScriptBtn" aria-label="关闭清洗剧本">×</button>
+      <div class="modal-header">
+        <p class="section-kicker">Readable Script</p>
+        <div class="readable-script-header">
+          <h2 id="readableScriptTitle">清洗剧本</h2>
+          <span id="readableScriptMeta">尚未渲染</span>
+        </div>
+      </div>
+      <div class="modal-body readable-script-modal-body">
+        <div class="partial-render-controls readable-script-controls">
+          <select id="partialRenderTargetSelect" aria-label="选择局部重渲染范围">
+            <option value="">选择要重渲染的幕或场</option>
+          </select>
+          <button type="button" class="btn secondary disabled-action" id="partialRenderButton" aria-disabled="true" disabled>局部重渲染</button>
+        </div>
+        <div class="partial-render-status info" id="partialRenderStatus" hidden>选择幕或场后，可仅重渲染该部分。</div>
+        <textarea id="readableScriptOutput" class="readable-script-output" readonly placeholder="点击“清洗为剧本”后，将在这里显示可复制的剧本文本。"></textarea>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn ghost" id="closeReadableScriptFooterBtn">关闭</button>
+      </div>
+    </div>
   </div>
 
   <div class="modal-backdrop" id="previewModal" hidden>
@@ -295,6 +307,6 @@
   </button>
 
   <script src="audio-player.js?v=20260607d"></script>
-  <script src="script-app.js"></script>
+  <script src="script-app.js?v=20260607e"></script>
 </body>
 </html>

@@ -183,7 +183,7 @@ def test_dialogue_field_is_converted_to_dialogues():
     )
     scene = normalized["screenplay"]["acts"][0]["scenes"][0]
 
-    assert scene["dialogues"] == [{"character": "Narrator", "line": "A secret line."}]
+    assert scene["dialogues"] == [{"character": "旁白", "line": "A secret line."}]
     assert any("dialogue string" in warning for warning in warnings)
 
 
@@ -197,8 +197,29 @@ def test_dialogue_string_items_are_converted_to_objects():
     )
     scene = normalized["screenplay"]["acts"][0]["scenes"][0]
 
-    assert scene["dialogues"] == [{"character": "Narrator", "line": "A line."}]
+    assert scene["dialogues"] == [{"character": "旁白", "line": "A line."}]
     assert any("dialogue string item" in warning for warning in warnings)
+
+
+def test_beats_are_normalized_to_structured_list():
+    normalized, warnings = normalize_llm_script_structure(
+        {
+            "characters": [],
+            "acts": [{"scenes": [{"beats": {"description": "雨夜街道。", "action": "林夏快步走来。"}}]}],
+        },
+        chapters=CHAPTERS,
+    )
+    scene = normalized["screenplay"]["acts"][0]["scenes"][0]
+
+    assert scene["beats"] == [
+        {
+            "description": "雨夜街道。",
+            "action": "林夏快步走来。",
+            "type": "action",
+            "content": "林夏快步走来。",
+        }
+    ]
+    assert any("beat object" in warning for warning in warnings)
 
 
 def test_quality_report_is_recalculated():

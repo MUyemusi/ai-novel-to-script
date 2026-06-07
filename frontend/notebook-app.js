@@ -14,7 +14,6 @@ const elements = {};
 function initApp() {
   elements.scriptGeneratorBtn = document.getElementById("scriptGeneratorBtn");
   elements.homeBtn = document.getElementById("homeBtn");
-  elements.newNotebookShortcutBtn = document.getElementById("newNotebookShortcutBtn");
   elements.statusBanner = document.getElementById("statusBanner");
   elements.homeView = document.getElementById("homeView");
   elements.workspaceView = document.getElementById("workspaceView");
@@ -26,7 +25,6 @@ function initApp() {
   elements.homeNotebookCount = document.getElementById("homeNotebookCount");
   elements.homeMessageCount = document.getElementById("homeMessageCount");
   elements.homeUpdatedAt = document.getElementById("homeUpdatedAt");
-  elements.sidebarCreateBtn = document.getElementById("sidebarCreateBtn");
   elements.sidebarNotebookList = document.getElementById("sidebarNotebookList");
   elements.chatNotebookTitle = document.getElementById("chatNotebookTitle");
   elements.chatMessageCount = document.getElementById("chatMessageCount");
@@ -41,10 +39,12 @@ function initApp() {
   elements.summaryText = document.getElementById("summaryText");
   elements.summaryLastMessage = document.getElementById("summaryLastMessage");
 
-  elements.scriptGeneratorBtn.addEventListener("click", goToScriptGenerator);
-  elements.homeBtn.addEventListener("click", showHomeView);
-  elements.newNotebookShortcutBtn.addEventListener("click", focusCreateNotebookForm);
-  elements.sidebarCreateBtn.addEventListener("click", focusCreateNotebookForm);
+  if (elements.scriptGeneratorBtn) {
+    elements.scriptGeneratorBtn.addEventListener("click", goToScriptGenerator);
+  }
+  if (elements.homeBtn) {
+    elements.homeBtn.addEventListener("click", showHomeView);
+  }
   elements.createNotebookForm.addEventListener("submit", handleCreateNotebook);
   elements.chatComposerForm.addEventListener("submit", handleSendMessage);
 

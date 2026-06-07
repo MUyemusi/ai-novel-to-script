@@ -105,7 +105,6 @@ function initApp() {
   document.getElementById("openNotebookPageBtn").addEventListener("click", () => {
     window.location.href = "notebook.html";
   });
-  document.getElementById("topLoadExampleBtn").addEventListener("click", loadExampleNovel);
   document.getElementById("panelLoadExampleBtn").addEventListener("click", loadExampleNovel);
   document.getElementById("clearTextBtn").addEventListener("click", clearNovelText);
   document.getElementById("generateYamlBtn").addEventListener("click", generateYaml);

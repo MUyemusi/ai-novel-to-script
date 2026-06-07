@@ -4,6 +4,8 @@ const elements = {};
 const state = {
   notebooks: [],
   sidebarOpen: false,
+  createModalOpen: false,
+  isCreatingNotebook: false,
 };
 
 function initWelcomePage() {
@@ -12,7 +14,13 @@ function initWelcomePage() {
   elements.openSidebarBtn = document.getElementById("openSidebarBtn");
   elements.closeSidebarBtn = document.getElementById("closeSidebarBtn");
   elements.startCreateBtn = document.getElementById("startCreateBtn");
-  elements.createMemoryBtn = document.getElementById("createMemoryBtn");
+  elements.createNotebookModal = document.getElementById("createNotebookModal");
+  elements.closeNotebookModalBtn = document.getElementById("closeNotebookModalBtn");
+  elements.createNotebookForm = document.getElementById("createNotebookForm");
+  elements.notebookTitleInput = document.getElementById("notebookTitleInput");
+  elements.notebookDescriptionInput = document.getElementById("notebookDescriptionInput");
+  elements.createNotebookMessage = document.getElementById("createNotebookMessage");
+  elements.submitNotebookBtn = document.getElementById("submitNotebookBtn");
 
   elements.memorySidebar.classList.remove("open");
 
@@ -22,14 +30,16 @@ function initWelcomePage() {
   elements.closeSidebarBtn.addEventListener("click", () => {
     setSidebarOpen(false);
   });
-  elements.startCreateBtn.addEventListener("click", async () => {
-    await createNotebookAndOpenScriptPage();
+  elements.startCreateBtn.addEventListener("click", () => {
+    openCreateNotebookModal();
   });
-  elements.createMemoryBtn.addEventListener("click", async () => {
-    await createNotebookAndOpenScriptPage();
-  });
+  elements.closeNotebookModalBtn.addEventListener("click", closeCreateNotebookModal);
+  elements.createNotebookModal.addEventListener("click", handleModalBackdropClick);
+  elements.createNotebookForm.addEventListener("submit", handleCreateNotebookSubmit);
+  document.addEventListener("keydown", handleGlobalKeydown);
 
   setSidebarOpen(state.sidebarOpen);
+  updateCreateNotebookActionState();
   loadNotebookMemories();
 }
 
@@ -79,6 +89,22 @@ function setSidebarOpen(isOpen) {
 }
 
 async function createNotebookAndOpenScriptPage() {
+  const title = elements.notebookTitleInput.value.trim();
+  const description = elements.notebookDescriptionInput.value.trim();
+  if (!title) {
+    setCreateNotebookMessage("请先填写笔记本名称。");
+    elements.notebookTitleInput.focus();
+    return;
+  }
+
+  if (state.isCreatingNotebook) {
+    return;
+  }
+
+  state.isCreatingNotebook = true;
+  updateCreateNotebookActionState();
+  setCreateNotebookMessage("");
+
   try {
     const response = await fetch(`${API_BASE_URL}/notebooks`, {
       method: "POST",
@@ -86,8 +112,8 @@ async function createNotebookAndOpenScriptPage() {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        title: buildNotebookTitle(),
-        description: "新的剧本改编创作流程",
+        title,
+        description,
       }),
     });
     const notebook = await response.json();
@@ -95,11 +121,20 @@ async function createNotebookAndOpenScriptPage() {
       throw new Error(notebook.detail || "创建记忆失败");
     }
 
+    closeCreateNotebookModal();
     goToScriptPage(notebook.id);
   } catch (error) {
     console.warn("Failed to create notebook before opening script page.", error);
-    goToScriptPage();
+    setCreateNotebookMessage(error.message || "创建笔记本失败，请稍后重试。");
+  } finally {
+    state.isCreatingNotebook = false;
+    updateCreateNotebookActionState();
   }
+}
+
+async function handleCreateNotebookSubmit(event) {
+  event.preventDefault();
+  await createNotebookAndOpenScriptPage();
 }
 
 function goToScriptPage(notebookId = "") {
@@ -107,13 +142,47 @@ function goToScriptPage(notebookId = "") {
   window.location.href = `script.html${query}`;
 }
 
-function buildNotebookTitle() {
-  const date = new Date();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  const hour = String(date.getHours()).padStart(2, "0");
-  const minute = String(date.getMinutes()).padStart(2, "0");
-  return `叙构创作 ${month}-${day} ${hour}:${minute}`;
+function openCreateNotebookModal() {
+  state.createModalOpen = true;
+  elements.createNotebookModal.hidden = false;
+  setCreateNotebookMessage("");
+  window.requestAnimationFrame(() => {
+    elements.notebookTitleInput.focus();
+  });
+}
+
+function closeCreateNotebookModal() {
+  if (state.isCreatingNotebook) {
+    return;
+  }
+
+  state.createModalOpen = false;
+  elements.createNotebookModal.hidden = true;
+  elements.createNotebookForm.reset();
+  setCreateNotebookMessage("");
+}
+
+function handleModalBackdropClick(event) {
+  if (event.target === elements.createNotebookModal) {
+    closeCreateNotebookModal();
+  }
+}
+
+function handleGlobalKeydown(event) {
+  if (event.key === "Escape" && state.createModalOpen) {
+    closeCreateNotebookModal();
+  }
+}
+
+function setCreateNotebookMessage(message) {
+  elements.createNotebookMessage.textContent = message;
+  elements.createNotebookMessage.hidden = !message;
+  elements.createNotebookMessage.classList.toggle("is-error", Boolean(message));
+}
+
+function updateCreateNotebookActionState() {
+  elements.submitNotebookBtn.disabled = state.isCreatingNotebook;
+  elements.submitNotebookBtn.textContent = state.isCreatingNotebook ? "创建中…" : "创建笔记本";
 }
 
 function formatTimestamp(value) {

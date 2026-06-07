@@ -25,5 +25,8 @@ Thumbs.db
 # Local documents
 *.docx
 
+# Local notebook memory data
+data/notebooks/
+
 # Streamlit cache
 .streamlit/

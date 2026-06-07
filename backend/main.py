@@ -1,19 +1,56 @@
 """FastAPI backend entry for AI 小说转剧本工具."""
 
+import json
 from pathlib import Path
 from typing import Any, Dict, Optional
 
 import yaml
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 try:
     from backend.services.chapter_parser import split_chapters, validate_min_chapters
+    from backend.services.notebook_store import (
+        append_conversation,
+        create_notebook,
+        get_notebook_conversations,
+        list_notebooks,
+        update_script_state,
+    )
+    from backend.services.schema import (
+        CONVERSATIONS_RESPONSE_SCHEMA,
+        CREATE_CONVERSATION_REQUEST_SCHEMA,
+        CREATE_CONVERSATION_RESPONSE_SCHEMA,
+        CREATE_NOTEBOOK_REQUEST_SCHEMA,
+        NOTEBOOK_SUMMARY_SCHEMA,
+        NOTEBOOKS_RESPONSE_SCHEMA,
+        UPDATE_SCRIPT_STATE_REQUEST_SCHEMA,
+        UPDATE_SCRIPT_STATE_RESPONSE_SCHEMA,
+        validate_payload,
+    )
     from backend.services.script_generator import build_script_structure
     from backend.services.style_options import get_script_styles
 except ModuleNotFoundError:
     from services.chapter_parser import split_chapters, validate_min_chapters
+    from services.notebook_store import (
+        append_conversation,
+        create_notebook,
+        get_notebook_conversations,
+        list_notebooks,
+        update_script_state,
+    )
+    from services.schema import (
+        CONVERSATIONS_RESPONSE_SCHEMA,
+        CREATE_CONVERSATION_REQUEST_SCHEMA,
+        CREATE_CONVERSATION_RESPONSE_SCHEMA,
+        CREATE_NOTEBOOK_REQUEST_SCHEMA,
+        NOTEBOOK_SUMMARY_SCHEMA,
+        NOTEBOOKS_RESPONSE_SCHEMA,
+        UPDATE_SCRIPT_STATE_REQUEST_SCHEMA,
+        UPDATE_SCRIPT_STATE_RESPONSE_SCHEMA,
+        validate_payload,
+    )
     from services.script_generator import build_script_structure
     from services.style_options import get_script_styles
 
@@ -46,6 +83,84 @@ class ChapterParseRequest(BaseModel):
 class ScriptGenerateRequest(BaseModel):
     text: str
     adaptation_profile: Optional[Dict[str, Any]] = None
+
+
+@app.get("/notebooks")
+def get_notebooks() -> dict:
+    """Return notebook summaries for the homepage."""
+    try:
+        payload = list_notebooks()
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    validate_payload(NOTEBOOKS_RESPONSE_SCHEMA, payload, "笔记本列表响应")
+    return payload
+
+
+@app.post("/notebooks")
+async def post_notebook(request: Request) -> dict:
+    """Create a new notebook."""
+    payload = await _read_json_request(request)
+    _validate_request_payload(CREATE_NOTEBOOK_REQUEST_SCHEMA, payload, "创建笔记本请求")
+
+    try:
+        notebook = create_notebook(
+            title=str(payload["title"]).strip(),
+            description=str(payload.get("description", "")).strip(),
+        )
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    validate_payload(NOTEBOOK_SUMMARY_SCHEMA, notebook, "创建笔记本响应")
+    return notebook
+
+
+@app.get("/notebooks/{notebook_id}/conversations")
+def get_conversations(notebook_id: str) -> dict:
+    """Load stored conversation history for one notebook."""
+    try:
+        payload = get_notebook_conversations(notebook_id)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=500, detail=str(exc)) from exc
+
+    validate_payload(CONVERSATIONS_RESPONSE_SCHEMA, payload, "对话历史响应")
+    return payload
+
+
+@app.post("/notebooks/{notebook_id}/conversations")
+async def post_conversation(notebook_id: str, request: Request) -> dict:
+    """Store a user message and return a mock AI reply."""
+    payload = await _read_json_request(request)
+    _validate_request_payload(CREATE_CONVERSATION_REQUEST_SCHEMA, payload, "发送对话请求")
+
+    try:
+        response_payload = append_conversation(notebook_id, str(payload["message"]).strip())
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    validate_payload(CREATE_CONVERSATION_RESPONSE_SCHEMA, response_payload, "发送对话响应")
+    return response_payload
+
+
+@app.post("/notebooks/{notebook_id}/script-state")
+async def post_script_state(notebook_id: str, request: Request) -> dict:
+    """Persist the latest script workspace state for one notebook."""
+    payload = await _read_json_request(request)
+    _validate_request_payload(UPDATE_SCRIPT_STATE_REQUEST_SCHEMA, payload, "保存剧本状态请求")
+
+    try:
+        response_payload = update_script_state(notebook_id, payload)
+    except FileNotFoundError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except (OSError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    validate_payload(UPDATE_SCRIPT_STATE_RESPONSE_SCHEMA, response_payload, "保存剧本状态响应")
+    return response_payload
 
 
 @app.get("/health")
@@ -180,3 +295,21 @@ def _preview_text(text: str, limit: int) -> str:
     if len(text) <= limit:
         return text
     return f"{text[:limit]}……"
+
+
+async def _read_json_request(request: Request) -> Dict[str, Any]:
+    try:
+        payload = await request.json()
+    except json.JSONDecodeError as exc:
+        raise HTTPException(status_code=400, detail="请求体不是合法 JSON。") from exc
+
+    if not isinstance(payload, dict):
+        raise HTTPException(status_code=400, detail="请求体必须是 JSON 对象。")
+    return payload
+
+
+def _validate_request_payload(schema: Dict[str, Any], payload: Dict[str, Any], label: str) -> None:
+    try:
+        validate_payload(schema, payload, label)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc

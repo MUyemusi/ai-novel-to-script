@@ -4,7 +4,7 @@
 
 AI 小说转剧本工具是一个比赛 Demo 项目，面向小说作者，目标是将 3 个章节以上的小说文本逐步转换为结构化 YAML 剧本初稿。
 
-当前项目已调整为前后端分离结构：前端使用 HTML、CSS 和原生 JavaScript，后端使用 FastAPI。当前后端已提供健康检查、章节解析、示例小说、风格配置、剧本 YAML 生成和 YAML 校验接口，并在 PR13 中支持可选的大模型生成；当未配置 API Key 或 USE_LLM=false 时，系统会继续使用规则生成逻辑。前端已支持 YAML 校验和 YAML 下载。清洗渲染、Word/PDF 导出仍属于后续计划。
+当前项目已调整为前后端分离结构：前端使用 HTML、CSS 和原生 JavaScript，后端使用 FastAPI。当前后端已提供健康检查、章节解析、示例小说、风格配置、剧本 YAML 生成和 YAML 校验接口，并在 PR13 中支持可选的大模型生成；当未配置 API Key 或 USE_LLM=false 时，系统会继续使用规则生成逻辑。前端主工作台已恢复 YAML 校验与下载、可读剧本渲染、稿纸预览确认、Word 导出和局部重渲染。PDF 导出仍属于后续计划。
 
 ## 当前技术栈
 
@@ -43,9 +43,12 @@ AI 小说转剧本工具是一个比赛 Demo 项目，面向小说作者，目�
 ## 项目结构
 
 - `frontend/`：前端静态页面
-- `frontend/index.html`：页面入口
-- `frontend/styles.css`：页面样式
-- `frontend/app.js`：前端基础初始化脚本
+- `frontend/index.html`：欢迎页和笔记本创建入口
+- `frontend/styles.css`：欢迎页、记忆侧栏和白噪音页面样式
+- `frontend/app.js`：欢迎页、笔记本创建和跳转脚本
+- `frontend/script.html`：小说转剧本主工作台入口
+- `frontend/script-styles.css`：主工作台、结构预览、稿纸预览和 AI 助理抽屉样式
+- `frontend/script-app.js`：主工作台交互、YAML 校验/渲染/导出、局部重渲染和 AI 助理逻辑
 - `backend/`：FastAPI 后端服务
 - `backend/main.py`：后端应用入口
 - `backend/requirements.txt`：后端依赖

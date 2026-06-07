@@ -145,30 +145,56 @@
         </div>
 
         <div class="yaml-message info" id="yamlMessage">识别至少 3 章后可生成 YAML。</div>
-        <textarea id="yamlOutput" class="yaml-output" readonly placeholder="生成后将在这里显示 YAML..."></textarea>
+        <textarea id="yamlOutput" class="yaml-output" placeholder="生成后将在这里显示 YAML..."></textarea>
 
         <div class="output-actions">
-          <button type="button" class="btn disabled-action" id="cleanScriptBtn" aria-disabled="true" disabled>清洗为剧本</button>
+          <button type="button" class="btn disabled-action" id="validateYamlButton" aria-disabled="true" disabled>校验 YAML</button>
+          <button type="button" class="btn disabled-action" id="downloadYamlButton" aria-disabled="true" disabled>下载 YAML</button>
+          <button type="button" class="btn disabled-action" id="renderScriptButton" aria-disabled="true" disabled>清洗为剧本</button>
         </div>
+
+        <section class="yaml-validation-panel" id="yamlValidationPanel" hidden aria-live="polite">
+          <div class="validation-summary-row">
+            <strong id="validationStatusText">尚未校验</strong>
+            <span class="validation-badge" id="validationValidBadge">-</span>
+          </div>
+          <div class="validation-metrics" id="validationMetrics"></div>
+          <div class="validation-issues" id="validationIssues"></div>
+        </section>
+
+        <section class="readable-script-panel" id="readableScriptPanel" hidden aria-labelledby="readableScriptTitle">
+          <div class="readable-script-heading">
+            <h3 id="readableScriptTitle">可读剧本</h3>
+            <span id="readableScriptMeta">尚未渲染</span>
+          </div>
+          <div class="partial-render-controls">
+            <select id="partialRenderTargetSelect" aria-label="选择局部重渲染范围">
+              <option value="">选择要重渲染的幕或场</option>
+            </select>
+            <button type="button" class="btn secondary disabled-action" id="partialRenderButton" aria-disabled="true" disabled>局部重渲染</button>
+          </div>
+          <div class="partial-render-status info" id="partialRenderStatus" hidden>选择幕或场后，可仅重渲染该部分。</div>
+          <textarea id="readableScriptOutput" class="readable-script-output" readonly placeholder="点击“清洗为剧本”后，将在这里显示可复制的剧本文本。"></textarea>
+        </section>
       </section>
     </main>
   </div>
 
   <div class="modal-backdrop" id="previewModal" hidden>
-    <div class="script-paper" role="dialog" aria-modal="true" aria-labelledby="previewTitle">
+    <div class="script-paper final-script-paper" role="dialog" aria-modal="true" aria-labelledby="previewTitle">
       <button type="button" class="modal-close" id="closePreviewBtn" aria-label="关闭预览">×</button>
       <div class="modal-header">
         <p class="section-kicker">Preview</p>
-        <h2 id="previewTitle">最终剧本预览</h2>
+        <h2 id="previewTitle">稿纸预览</h2>
       </div>
-      <div class="modal-body">
-        <h3 class="script-title" id="previewScriptName">《剧本预览》</h3>
-        <p class="muted" id="previewDescription">生成 YAML 后，可在这里查看最终剧本预览样式。</p>
+      <div class="modal-body final-script-body">
+        <textarea id="finalScriptTextarea" class="final-script-textarea" placeholder="可在这里编辑最终剧本文本。"></textarea>
+        <p class="final-script-status" id="finalScriptStatus">编辑后点击“确认最终剧本”，保存为 Word 导出的文本来源。</p>
       </div>
       <div class="modal-footer">
-        <button type="button" class="btn ghost" id="modalResetBtn">重置</button>
-        <button type="button" class="btn secondary" disabled aria-disabled="true">下载 Word</button>
-        <button type="button" class="btn secondary" disabled aria-disabled="true">下载 PDF</button>
+        <button type="button" class="btn ghost" id="modalResetBtn">关闭</button>
+        <button type="button" class="btn secondary disabled-action word-export-button" id="exportWordButton" aria-disabled="true" disabled>导出 Word</button>
+        <button type="button" class="btn primary" id="confirmFinalScriptButton">确认最终剧本</button>
       </div>
     </div>
   </div>

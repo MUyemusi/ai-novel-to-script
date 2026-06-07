@@ -40,7 +40,10 @@ const state = {
   isSendingMessage: false,
   conversations: [],
   validationResult: null,
+  readableScriptText: "",
+  readableScriptValid: false,
   finalScriptText: "",
+  finalScriptConfirmed: false,
   generatedMode: "",
   generatedWarnings: [],
   previewReady: false,
@@ -672,6 +675,8 @@ function renderReadableScript() {
     }
 
     const renderedText = buildReadableScriptText(screenplay);
+    state.readableScriptText = renderedText;
+    state.readableScriptValid = true;
     elements.readableScriptOutput.value = renderedText;
     elements.readableScriptPanel.hidden = false;
     elements.readableScriptMeta.textContent = `${renderedText.split("\n").length} 行`;
@@ -679,12 +684,16 @@ function renderReadableScript() {
     logReadableScriptDebug(yamlText, data, screenplay, readableData.source, readableData.fallbackEnabled);
     renderYamlMessage("可读剧本已渲染，可直接复制。", "success");
     updateActionButtons();
+    scheduleScriptStatePersist();
   } catch (error) {
+    state.readableScriptText = "";
+    state.readableScriptValid = false;
     elements.readableScriptPanel.hidden = false;
     elements.readableScriptOutput.value = `渲染失败：${error.message || "YAML 解析失败，请先校验 YAML。"}`;
     elements.readableScriptMeta.textContent = "渲染失败";
     renderYamlMessage("YAML 渲染失败，请检查格式或先点击校验。", "error");
     updateActionButtons();
+    scheduleScriptStatePersist();
   }
 }
 
@@ -753,6 +762,8 @@ async function renderPartialActOrScene() {
     const updatedYamlText = stringifyYaml(currentData.data);
     elements.yamlOutput.value = updatedYamlText;
     state.generatedYaml = updatedYamlText;
+    state.readableScriptText = updatedReadableText;
+    state.readableScriptValid = true;
     elements.readableScriptOutput.value = updatedReadableText;
     elements.readableScriptPanel.hidden = false;
     elements.readableScriptMeta.textContent = `${updatedReadableText.split("\n").length} 行`;
@@ -778,28 +789,6 @@ async function renderPartialActOrScene() {
   }
 }
 
-function renderPartialRenderTargets(screenplay, selectedValue = "") {
-  const acts = getActs(screenplay);
-  const options = ['<option value="">选择要重渲染的幕或场</option>'];
-
-  acts.forEach((act, actIndex) => {
-    const actTitle = escapeHtml(stringifyValue(act.title || act.act_id) || `第${actIndex + 1}幕`);
-    options.push(`<option value="act:${actIndex}">第${actIndex + 1}幕：${actTitle}</option>`);
-
-    const scenes = Array.isArray(act.scenes) ? act.scenes : [];
-    scenes.forEach((scene, sceneIndex) => {
-      const sceneTitle = escapeHtml(stringifyValue(scene.title || scene.scene_id) || `场景${sceneIndex + 1}`);
-      options.push(`<option value="scene:${actIndex}:${sceneIndex}">第${actIndex + 1}幕 / 场景${sceneIndex + 1}：${sceneTitle}</option>`);
-    });
-  });
-
-  elements.partialRenderTargetSelect.innerHTML = options.join("");
-  if (selectedValue && elements.partialRenderTargetSelect.querySelector(`option[value="${selectedValue}"]`)) {
-    elements.partialRenderTargetSelect.value = selectedValue;
-  }
-  renderPartialRenderStatus("选择幕或场后，可仅重渲染该部分。", "info", true);
-}
-
 function renderPartialRenderStatus(message, type = "info", hidden = false) {
   elements.partialRenderStatus.textContent = message;
   elements.partialRenderStatus.className = `partial-render-status ${type}`;
@@ -820,23 +809,6 @@ function parsePartialRenderTarget(value) {
   return null;
 }
 
-function parseCurrentScreenplayYaml() {
-  try {
-    const data = parseSimpleYaml(getCurrentYaml());
-    const screenplay = data && data.screenplay;
-    if (!screenplay || typeof screenplay !== "object") {
-      return null;
-    }
-    return { data, screenplay };
-  } catch (error) {
-    return null;
-  }
-}
-
-function getActs(screenplay) {
-  return screenplay && Array.isArray(screenplay.acts) ? screenplay.acts : [];
-}
-
 function buildPartialRenderSourceText(screenplay, target) {
   const label = formatPartialTargetLabel(screenplay, target);
   const selectedText = extractPartialReadableSection(buildReadableScriptText(screenplay), target) || label;
@@ -848,20 +820,6 @@ function buildPartialRenderSourceText(screenplay, target) {
     `第3章 ${label} 结构整理`,
     selectedText,
   ].join("\n\n");
-}
-
-function formatPartialTargetLabel(screenplay, target) {
-  const acts = getActs(screenplay);
-  const act = acts[target.actIndex] || {};
-  const actTitle = stringifyValue(act.title || act.act_id) || `第${target.actIndex + 1}幕`;
-  if (target.type === "act") {
-    return `第${target.actIndex + 1}幕：${actTitle}`;
-  }
-
-  const scenes = Array.isArray(act.scenes) ? act.scenes : [];
-  const scene = scenes[target.sceneIndex] || {};
-  const sceneTitle = stringifyValue(scene.title || scene.scene_id) || `场景${target.sceneIndex + 1}`;
-  return `第${target.actIndex + 1}幕 / 场景${target.sceneIndex + 1}：${sceneTitle}`;
 }
 
 function buildPartialReplacement(currentActs, generatedActs, target) {
@@ -898,31 +856,6 @@ function applyPartialReplacement(acts, target, replacement) {
     acts[target.actIndex].scenes = [];
   }
   acts[target.actIndex].scenes[target.sceneIndex] = replacement;
-}
-
-function refreshQualityReport(screenplay) {
-  if (!screenplay || typeof screenplay !== "object") {
-    return;
-  }
-
-  const acts = getActs(screenplay);
-  const scenes = acts.flatMap((act) => (Array.isArray(act.scenes) ? act.scenes : []));
-  const coveredChapters = new Set(
-    scenes
-      .map((scene) => stringifyValue(scene.source_chapter_id || scene.source_chapters?.[0]))
-      .filter(Boolean),
-  );
-  const chapterCount = Number(screenplay.source_novel?.chapter_count || screenplay.quality_report?.chapter_count || coveredChapters.size || 0);
-  const characterCount = Array.isArray(screenplay.characters) ? screenplay.characters.length : 0;
-  const coverageRate = chapterCount > 0 ? Math.min(coveredChapters.size / chapterCount, 1) : 0;
-
-  screenplay.quality_report = {
-    ...(screenplay.quality_report || {}),
-    chapter_count: chapterCount,
-    scene_count: scenes.length,
-    character_count: characterCount,
-    chapter_coverage_rate: Number(coverageRate.toFixed(2)),
-  };
 }
 
 function updateFinalScriptAfterPartialRender(beforeReadableText, updatedReadableText, target) {
@@ -1024,14 +957,18 @@ function trimTrailingBlankLine(lines, endIndex) {
 }
 
 function openScriptPreviewModal() {
-  const sourceText = state.finalScriptText || getReadableScriptText();
+  const sourceText = state.finalScriptConfirmed ? state.finalScriptText : state.readableScriptText;
   if (!sourceText.trim()) {
     renderYamlMessage("请先点击“清洗为剧本”，再打开稿纸预览。", "warning");
     return;
   }
+  if (!state.finalScriptConfirmed && !state.readableScriptValid) {
+    renderYamlMessage("当前可读剧本无效，请重新点击“清洗为剧本”。", "warning");
+    return;
+  }
 
   elements.finalScriptTextarea.value = sourceText;
-  elements.finalScriptStatus.textContent = state.finalScriptText
+  elements.finalScriptStatus.textContent = state.finalScriptConfirmed
     ? "已载入上次确认的最终剧本，可继续编辑。"
     : "已载入当前可读剧本文本，可编辑后确认最终剧本。";
   elements.finalScriptStatus.className = "final-script-status";
@@ -1042,16 +979,33 @@ function openScriptPreviewModal() {
 }
 
 function confirmFinalScript() {
+  if (!state.readableScriptValid && !state.finalScriptConfirmed) {
+    elements.finalScriptStatus.textContent = "当前可读剧本无效，请重新清洗为剧本后再确认。";
+    elements.finalScriptStatus.className = "final-script-status warning";
+    updateActionButtons();
+    return;
+  }
+
   state.finalScriptText = elements.finalScriptTextarea.value;
+  if (!state.finalScriptText.trim()) {
+    state.finalScriptConfirmed = false;
+    elements.finalScriptStatus.textContent = "最终剧本文本为空，无法确认。";
+    elements.finalScriptStatus.className = "final-script-status warning";
+    updateActionButtons();
+    return;
+  }
+
+  state.finalScriptConfirmed = Boolean(state.finalScriptText.trim());
   elements.finalScriptStatus.textContent = "最终剧本已确认，可用于 Word 导出。";
   elements.finalScriptStatus.className = "final-script-status success";
   renderYamlMessage("最终剧本已确认，可用于 Word 导出。", "success");
   updateActionButtons();
+  scheduleScriptStatePersist();
 }
 
 function exportFinalScriptToWord() {
   const finalText = state.finalScriptText.trim();
-  if (!finalText) {
+  if (!finalText || !state.finalScriptConfirmed) {
     elements.finalScriptStatus.textContent = "请先点击“确认最终剧本”，再导出 Word。";
     elements.finalScriptStatus.className = "final-script-status warning";
     renderYamlMessage("请先确认最终剧本后再导出 Word。", "warning");
@@ -1083,7 +1037,7 @@ function handleGlobalKeydown(event) {
 }
 
 function getReadableScriptText() {
-  return elements.readableScriptOutput ? elements.readableScriptOutput.value : "";
+  return state.readableScriptValid ? state.readableScriptText : "";
 }
 
 function getCurrentYaml() {
@@ -1202,6 +1156,8 @@ function resetReadableScript() {
     return;
   }
 
+  state.readableScriptText = "";
+  state.readableScriptValid = false;
   elements.readableScriptPanel.hidden = true;
   elements.readableScriptOutput.value = "";
   elements.readableScriptMeta.textContent = "尚未渲染";
@@ -1211,12 +1167,48 @@ function resetReadableScript() {
 
 function resetFinalScriptText(message = "") {
   state.finalScriptText = "";
+  state.finalScriptConfirmed = false;
   if (elements.finalScriptTextarea) {
     elements.finalScriptTextarea.value = "";
   }
   if (elements.finalScriptStatus) {
     elements.finalScriptStatus.textContent = message || "编辑后点击“确认最终剧本”，保存为 Word 导出的文本来源。";
     elements.finalScriptStatus.className = "final-script-status";
+  }
+}
+
+function restoreReadableAndFinalScriptState(scriptState) {
+  const readableText = typeof scriptState.readable_script_text === "string"
+    ? scriptState.readable_script_text
+    : "";
+  const readableValid = Boolean(scriptState.readable_script_valid && readableText.trim());
+  const finalText = typeof scriptState.final_script_text === "string"
+    ? scriptState.final_script_text
+    : "";
+  const finalConfirmed = Boolean(scriptState.final_script_confirmed && finalText.trim());
+
+  state.readableScriptText = readableText;
+  state.readableScriptValid = readableValid;
+  state.finalScriptText = finalText;
+  state.finalScriptConfirmed = finalConfirmed;
+
+  if (readableText) {
+    elements.readableScriptOutput.value = readableText;
+    elements.readableScriptPanel.hidden = false;
+    elements.readableScriptMeta.textContent = readableValid
+      ? `${readableText.split("\n").length} 行`
+      : "已恢复但未确认有效";
+
+    const parsed = parseCurrentScreenplayYaml();
+    if (parsed) {
+      renderPartialRenderTargets(parsed.screenplay);
+    }
+  }
+
+  if (finalConfirmed) {
+    elements.finalScriptTextarea.value = finalText;
+    elements.finalScriptStatus.textContent = "已恢复上次确认的最终剧本，可用于 Word 导出。";
+    elements.finalScriptStatus.className = "final-script-status success";
   }
 }
 
@@ -1227,8 +1219,8 @@ function updateActionButtons() {
   const canGenerateYaml = hasEnoughChapters && !state.isGeneratingYaml;
   const hasYaml = Boolean(getCurrentYaml().trim());
   const canValidateYaml = hasYaml && !state.isValidatingYaml;
-  const hasReadableScript = Boolean(getReadableScriptText().trim());
-  const hasFinalScript = Boolean(state.finalScriptText.trim());
+  const hasReadableScript = state.readableScriptValid && Boolean(state.readableScriptText.trim());
+  const hasFinalScript = state.finalScriptConfirmed && Boolean(state.finalScriptText.trim());
   const canOpenPreview = hasReadableScript || hasFinalScript;
   const canPartialRender = hasYaml
     && hasReadableScript
@@ -2223,6 +2215,25 @@ function parseYamlBlock(lines, startIndex, indent) {
   return parseYamlMap(lines, startIndex, indent);
 }
 
+function hasYamlNestedBlock(nextLine, parentIndent) {
+  if (!nextLine) {
+    return false;
+  }
+  if (nextLine.indent > parentIndent) {
+    return true;
+  }
+  return nextLine.indent === parentIndent && nextLine.text.startsWith("- ");
+}
+
+function getYamlNestedBlockIndent(nextLine, parentIndent) {
+  if (!nextLine) {
+    return parentIndent;
+  }
+  return nextLine.indent === parentIndent && nextLine.text.startsWith("- ")
+    ? parentIndent
+    : nextLine.indent;
+}
+
 function parseYamlMap(lines, startIndex, indent) {
   const result = {};
   let index = startIndex;
@@ -2256,11 +2267,11 @@ function parseYamlMap(lines, startIndex, indent) {
       index += 1;
     } else {
       const nextLine = lines[index + 1];
-      if (!nextLine || nextLine.indent <= indent) {
+      if (!hasYamlNestedBlock(nextLine, indent)) {
         result[key] = null;
         index += 1;
       } else {
-        const nested = parseYamlBlock(lines, index + 1, nextLine.indent);
+        const nested = parseYamlBlock(lines, index + 1, getYamlNestedBlockIndent(nextLine, indent));
         result[key] = nested.value;
         index = nested.nextIndex;
       }
@@ -2710,6 +2721,10 @@ function getScriptStateSnapshot() {
     generated_yaml: state.generatedYaml,
     generated_summary: state.generatedSummary,
     generated_characters: state.generatedCharacters,
+    readable_script_text: state.readableScriptText,
+    readable_script_valid: state.readableScriptValid,
+    final_script_text: state.finalScriptText,
+    final_script_confirmed: state.finalScriptConfirmed,
     active_step: getActiveStep(),
   };
 }
@@ -2802,6 +2817,14 @@ function restoreScriptState(scriptState) {
     state.generatedCharacters = Array.isArray(scriptState.generated_characters)
       ? scriptState.generated_characters
       : [];
+    state.readableScriptText = typeof scriptState.readable_script_text === "string"
+      ? scriptState.readable_script_text
+      : "";
+    state.readableScriptValid = Boolean(scriptState.readable_script_valid && state.readableScriptText.trim());
+    state.finalScriptText = typeof scriptState.final_script_text === "string"
+      ? scriptState.final_script_text
+      : "";
+    state.finalScriptConfirmed = Boolean(scriptState.final_script_confirmed && state.finalScriptText.trim());
 
     updateTextStats();
 
@@ -2832,6 +2855,7 @@ function restoreScriptState(scriptState) {
         characters: state.generatedCharacters,
         message: "已恢复最近一次 YAML 生成结果。",
       });
+      restoreReadableAndFinalScriptState(scriptState);
     } else {
       renderYamlIdleState(
         state.chapters.length >= 3

@@ -1,6 +1,8 @@
 import pytest
+import yaml
 
 from backend.services.script_generator import build_script_structure
+from backend.services.yaml_validator import validate_yaml_text
 
 
 THREE_CHAPTER_NOVEL = """
@@ -101,6 +103,29 @@ def test_quality_report_scene_count_matches_total_act_scenes():
     scene_count = sum(len(act["scenes"]) for act in screenplay["acts"])
 
     assert screenplay["quality_report"]["scene_count"] == scene_count
+
+
+def test_each_generated_scene_has_source_chapter_id():
+    result = build_script_structure(THREE_CHAPTER_NOVEL)
+
+    for act in result["screenplay"]["acts"]:
+        assert act["source_chapters"]
+        for scene in act["scenes"]:
+            assert scene["source_chapter_id"] in act["source_chapters"]
+
+
+def test_generated_yaml_validation_uses_nonzero_chapter_coverage():
+    result = build_script_structure(THREE_CHAPTER_NOVEL)
+    yaml_text = yaml.safe_dump(result, allow_unicode=True, sort_keys=False)
+
+    validation = validate_yaml_text(yaml_text)
+
+    assert validation["summary"]["chapter_coverage_rate"] == 1.0
+    assert not any(
+        warning["path"] == "screenplay.acts"
+        and warning["message"] == "chapter coverage is below 100%"
+        for warning in validation["warnings"]
+    )
 
 
 def test_each_scene_has_non_empty_action_beat():

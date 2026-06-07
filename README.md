@@ -202,24 +202,21 @@ uvicorn main:app --reload
 - 点击“稿纸预览”会打开可编辑弹窗。弹窗优先载入已确认的最终剧本；如果还没有确认文本，则载入当前可读剧本文本。编辑后点击“确认最终剧本”会把文本保存到前端状态，作为后续 Word 导出的来源。关闭弹窗不会修改 YAML，也不会保存未确认的修改。
 - 在稿纸弹窗中确认最终剧本后，点击“导出 Word”会下载 `screenplay.docx`。导出内容来自已确认的最终剧本文本，不会自动使用未确认的弹窗编辑内容。
 
+规则生成的 YAML 会保留 `act.source_chapters`，并在每个 `scene.source_chapter_id` 写入对应原文章节 id。YAML 校验会优先按 scene 级 `source_chapter_id` 统计章节覆盖率；对旧数据，如果 scene 缺少该字段但 act 有 `source_chapters`，校验器会兼容计算覆盖率，同时仍提示 scene 缺少来源字段。
+
 校验结果示例：
 
 ```json
 {
   "valid": true,
-  "status": "warning",
+  "status": "pass",
   "errors": [],
-  "warnings": [
-    {
-      "path": "screenplay.acts",
-      "message": "chapter coverage is below 100%"
-    }
-  ],
+  "warnings": [],
   "summary": {
     "chapter_count": 3,
-    "scene_count": 2,
+    "scene_count": 3,
     "character_count": 2,
-    "chapter_coverage_rate": 0.67
+    "chapter_coverage_rate": 1.0
   }
 }
 ```
@@ -320,7 +317,7 @@ PR17 adds a frontend-only `渲染剧本` button next to the YAML output controls
 Acts -> Scenes -> Characters -> Dialogue
 ```
 
-The renderer shows `source_chapter_id` in act and scene headings, displays placeholders such as `暂无场景`、`暂无角色`、`暂无对白` for empty fields, and keeps long output scrollable. PR17 does not change YAML validation or download behavior, and it does not add paper preview, Word/PDF export, local re-rendering, database, or login features.
+The renderer shows chapter source labels from `act.source_chapters` and `scene.source_chapter_id`, displays placeholders such as `暂无场景`、`暂无角色`、`暂无对白` for empty fields, and keeps long output scrollable. PR17 does not change YAML validation or download behavior, and it does not add paper preview, Word/PDF export, local re-rendering, database, or login features.
 
 ## PR18: Frontend paper preview and final script confirmation
 

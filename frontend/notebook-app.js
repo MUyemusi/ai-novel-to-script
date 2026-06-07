@@ -14,7 +14,6 @@ const elements = {};
 function initApp() {
   elements.scriptGeneratorBtn = document.getElementById("scriptGeneratorBtn");
   elements.homeBtn = document.getElementById("homeBtn");
-  elements.statusBanner = document.getElementById("statusBanner");
   elements.homeView = document.getElementById("homeView");
   elements.workspaceView = document.getElementById("workspaceView");
   elements.createNotebookForm = document.getElementById("createNotebookForm");
@@ -232,9 +231,9 @@ function renderNotebookMetrics() {
   const messageCount = state.notebooks.reduce((total, notebook) => total + (notebook.message_count || 0), 0);
   const latestUpdate = state.notebooks[0]?.updated_at || "-";
 
-  elements.homeNotebookCount.textContent = String(notebookCount);
-  elements.homeMessageCount.textContent = String(messageCount);
-  elements.homeUpdatedAt.textContent = formatTimestamp(latestUpdate);
+  setOptionalText(elements.homeNotebookCount, String(notebookCount));
+  setOptionalText(elements.homeMessageCount, String(messageCount));
+  setOptionalText(elements.homeUpdatedAt, formatTimestamp(latestUpdate));
 }
 
 function renderWorkspaceShell() {
@@ -328,8 +327,12 @@ function goToScriptGenerator(notebookId = "") {
 }
 
 function updateActionState() {
-  elements.createNotebookBtn.disabled = state.isCreatingNotebook;
-  elements.sendMessageBtn.disabled = state.isSendingMessage || !state.selectedNotebookId;
+  if (elements.createNotebookBtn) {
+    elements.createNotebookBtn.disabled = state.isCreatingNotebook;
+  }
+  if (elements.sendMessageBtn) {
+    elements.sendMessageBtn.disabled = state.isSendingMessage || !state.selectedNotebookId;
+  }
 }
 
 function getCurrentNotebook() {
@@ -339,6 +342,12 @@ function getCurrentNotebook() {
 function setStatus(message, type = "info") {
   // 状态栏已删除，不再显示冗余提示
   console.log(`[Status: ${type}] ${message}`);
+}
+
+function setOptionalText(element, value) {
+  if (element) {
+    element.textContent = value;
+  }
 }
 
 function formatTimestamp(value) {

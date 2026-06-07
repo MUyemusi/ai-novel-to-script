@@ -107,6 +107,7 @@ def _build_scene(chapter: dict[str, Any]) -> dict[str, Any]:
         "scene_id": f"scene_{order:03d}",
         "order": 1,
         "title": chapter["title"],
+        "source_chapter_id": chapter["chapter_id"],
         "location": "待定",
         "time": "待定",
         "characters": [PLACEHOLDER_CHARACTER["character_id"]],

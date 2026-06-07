@@ -665,8 +665,8 @@ function renderReadableScript() {
   }
 
   try {
-    const data = parseSimpleYaml(yamlText);
-    const screenplay = data && typeof data === "object" ? data.screenplay : null;
+    const readableData = parseReadableScreenplay(yamlText);
+    const { data, screenplay } = readableData;
     if (!screenplay || typeof screenplay !== "object") {
       throw new Error("YAML 中缺少 screenplay 对象。");
     }
@@ -676,6 +676,7 @@ function renderReadableScript() {
     elements.readableScriptPanel.hidden = false;
     elements.readableScriptMeta.textContent = `${renderedText.split("\n").length} 行`;
     renderPartialRenderTargets(screenplay);
+    logReadableScriptDebug(yamlText, data, screenplay, readableData.source, readableData.fallbackEnabled);
     renderYamlMessage("可读剧本已渲染，可直接复制。", "success");
     updateActionButtons();
   } catch (error) {
@@ -705,7 +706,7 @@ async function renderPartialActOrScene() {
   }
 
   const acts = getActs(currentData.screenplay);
-  if (!acts[target.actIndex] || (target.type === "scene" && !acts[target.actIndex].scenes?.[target.sceneIndex])) {
+  if (!acts[target.actIndex] || (target.type === "scene" && !extractScenes(acts[target.actIndex])[target.sceneIndex])) {
     renderPartialRenderStatus("选择的幕或场不存在，请重新渲染可读剧本后再试。", "warning");
     return;
   }
@@ -775,103 +776,6 @@ async function renderPartialActOrScene() {
     elements.partialRenderButton.textContent = "局部重渲染";
     updateActionButtons();
   }
-}
-
-function buildReadableScriptText(screenplay) {
-  const title = stringifyValue(screenplay.title || screenplay.meta?.title) || "未命名剧本";
-  const acts = Array.isArray(screenplay.acts) ? screenplay.acts : [];
-  const lines = [`《${title}》`, ""];
-
-  if (!acts.length) {
-    lines.push("暂无场景");
-    return lines.join("\n");
-  }
-
-  acts.forEach((act, actIndex) => {
-    const actTitle = stringifyValue(act.title || act.act_id) || `第${actIndex + 1}幕`;
-    const scenes = Array.isArray(act.scenes) ? act.scenes : [];
-    const actChapterLabel = collectActChapterIds(act, scenes);
-
-    lines.push(`第${actIndex + 1}幕：${actTitle} (Chapter ID: ${actChapterLabel})`);
-    if (act.summary) {
-      lines.push(`  概述：${stringifyValue(act.summary)}`);
-    }
-
-    if (!scenes.length) {
-      lines.push("  暂无场景");
-      lines.push("");
-      return;
-    }
-
-    scenes.forEach((scene, sceneIndex) => {
-      const sceneTitle = stringifyValue(scene.title || scene.scene_id) || `场景${sceneIndex + 1}`;
-      const chapterId = stringifyValue(scene.source_chapter_id || scene.source_chapters?.[0]) || "暂无章节 ID";
-      const characters = normalizeCharacterNames(scene.characters);
-      const dialogues = Array.isArray(scene.dialogues) ? scene.dialogues : [];
-      const actions = Array.isArray(scene.actions) ? scene.actions : Array.isArray(scene.beats) ? scene.beats : [];
-
-      lines.push(`  场景${sceneIndex + 1}：${sceneTitle} (Chapter ID: ${chapterId})`);
-      if (scene.location || scene.time) {
-        lines.push(`    时空：${stringifyValue(scene.location) || "未注明地点"} / ${stringifyValue(scene.time) || "未注明时间"}`);
-      }
-      if (scene.conflict) {
-        lines.push(`    冲突：${stringifyValue(scene.conflict)}`);
-      }
-      if (scene.summary) {
-        lines.push(`    场景概述：${stringifyValue(scene.summary)}`);
-      }
-      lines.push(characters.length ? `    角色：${characters.join("、")}` : "    角色：暂无角色");
-
-      if (actions.length) {
-        lines.push("    动作：");
-        actions.forEach((action) => {
-          const content = typeof action === "object" ? action.content || action.text || action.action : action;
-          lines.push(`      ${stringifyValue(content) || "暂无动作"}`);
-        });
-      }
-
-      if (!dialogues.length) {
-        lines.push("    对白：暂无对白");
-      } else {
-        lines.push("    对白：");
-        dialogues.forEach((dialogue) => {
-          const characterName = stringifyValue(dialogue && dialogue.character) || "未命名角色";
-          const lineText = stringifyValue(dialogue && (dialogue.line || dialogue.text || dialogue.dialogue)) || "暂无对白";
-          lines.push(`      ${characterName}：${lineText}`);
-        });
-      }
-      lines.push("");
-    });
-  });
-
-  return lines.join("\n").trimEnd();
-}
-
-function collectActChapterIds(act, scenes) {
-  const chapterIds = []
-    .concat(Array.isArray(act.source_chapters) ? act.source_chapters : [])
-    .concat(scenes.map((scene) => scene && (scene.source_chapter_id || scene.source_chapters?.[0])))
-    .map((chapterId) => stringifyValue(chapterId))
-    .filter(Boolean);
-  return chapterIds.length ? Array.from(new Set(chapterIds)).join(", ") : "暂无章节 ID";
-}
-
-function normalizeCharacterNames(characters) {
-  if (!Array.isArray(characters)) {
-    return [];
-  }
-
-  return characters
-    .map((character) => {
-      if (typeof character === "string" || typeof character === "number") {
-        return stringifyValue(character);
-      }
-      if (character && typeof character === "object") {
-        return stringifyValue(character.name || character.character || character.character_id || character.id);
-      }
-      return "";
-    })
-    .filter(Boolean);
 }
 
 function renderPartialRenderTargets(screenplay, selectedValue = "") {
@@ -972,7 +876,7 @@ function buildPartialReplacement(currentActs, generatedActs, target) {
   }
 
   const originalScene = currentActs[target.actIndex]?.scenes?.[target.sceneIndex] || {};
-  const generatedScene = generatedAct.scenes && generatedAct.scenes[0];
+  const generatedScene = extractScenes(generatedAct)[0];
   if (!generatedScene) {
     throw new Error("局部重渲染未返回可用场景内容。");
   }
@@ -1368,6 +1272,922 @@ function updateActionButtons() {
   updateProgressStep();
 }
 
+function buildReadableScriptText(screenplayLike) {
+  const screenplay = extractScreenplayRoot(screenplayLike) || {};
+  const title =
+    stringifyValue(screenplay.meta?.title || screenplay.title || screenplay.meta?.name || screenplay.name) ||
+    "未命名剧本";
+  const acts = extractActs(screenplay);
+  const lines = [`《${title}》`, ""];
+
+  if (!acts.length) {
+    lines.push("暂无场景");
+    return lines.join("\n");
+  }
+
+  let hasAnyScene = false;
+  acts.forEach((act, actIndex) => {
+    const actTitle = stringifyValue(act.title || act.name || act.heading || act.act_id || act.act_number) || `第${actIndex + 1}幕`;
+    const scenes = extractScenes(act);
+    const actChapterLabel = collectActChapterIds(act, scenes);
+
+    lines.push(`第${actIndex + 1}幕：${actTitle}（来源章节：${actChapterLabel}）`);
+    if (act.summary || act.description) {
+      lines.push(`  概述：${stringifyValue(act.summary || act.description)}`);
+    }
+
+    if (!scenes.length) {
+      lines.push("  暂无场景");
+      lines.push("");
+      return;
+    }
+
+    hasAnyScene = true;
+    scenes.forEach((scene, sceneIndex) => {
+      const sceneTitle = getSceneTitle(scene, sceneIndex);
+      const chapterId = getSceneChapterId(scene);
+      const location = stringifyValue(scene.location || scene.place || scene.setting);
+      const time = stringifyValue(scene.time || scene.time_of_day || scene.period);
+      const characters = extractCharacters(scene, screenplay);
+      const actions = extractActions(scene);
+      const beats = extractBeats(scene);
+      const dialogues = extractDialogues(scene);
+
+      lines.push(`  第${sceneIndex + 1}场：${sceneTitle}（来源章节：${chapterId}）`);
+      if (location || time) {
+        lines.push(`    时空：${location || "未注明地点"} / ${time || "未注明时间"}`);
+      }
+      if (scene.conflict) {
+        lines.push(`    冲突：${stringifyValue(scene.conflict)}`);
+      }
+      if (scene.summary || scene.description) {
+        lines.push(`    场景概述：${stringifyValue(scene.summary || scene.description)}`);
+      }
+      lines.push(characters.length ? `    角色：${characters.join("、")}` : "    角色：暂无角色");
+
+      if (actions.length) {
+        lines.push("    动作 / 旁白：");
+        actions.forEach((action) => {
+          lines.push(`      ${action}`);
+        });
+      }
+
+      const nonDialogueBeats = beats.filter((beat) => !isDialogueBeat(beat));
+      if (nonDialogueBeats.length) {
+        lines.push("    节拍：");
+        nonDialogueBeats.forEach((beat) => {
+          lines.push(`      ${formatBeat(beat)}`);
+        });
+      }
+
+      if (dialogues.length) {
+        lines.push("    对白：");
+        dialogues.forEach((dialogue) => {
+          const characterName = stringifyValue(dialogue.character || dialogue.speaker || dialogue.name) || "旁白";
+          const lineText = stringifyValue(dialogue.line || dialogue.text || dialogue.dialogue || dialogue.content) || "暂无对白";
+          lines.push(`      ${characterName}：${lineText}`);
+        });
+      } else {
+        lines.push("    【提示】本场暂无对白，可在稿纸中继续补写。");
+      }
+      lines.push("");
+    });
+  });
+
+  if (!hasAnyScene) {
+    return [`《${title}》`, "", "暂无场景"].join("\n");
+  }
+
+  return lines.join("\n").trimEnd();
+}
+
+function extractScreenplayRoot(parsedYaml) {
+  if (!parsedYaml || typeof parsedYaml !== "object") {
+    return null;
+  }
+  if (parsedYaml.screenplay && typeof parsedYaml.screenplay === "object" && !Array.isArray(parsedYaml.screenplay)) {
+    return parsedYaml.screenplay;
+  }
+  if (parsedYaml.screen_play && typeof parsedYaml.screen_play === "object" && !Array.isArray(parsedYaml.screen_play)) {
+    return parsedYaml.screen_play;
+  }
+  if (parsedYaml.script && typeof parsedYaml.script === "object" && !Array.isArray(parsedYaml.script)) {
+    return parsedYaml.script;
+  }
+  if (Array.isArray(parsedYaml.acts) || Array.isArray(parsedYaml.scenes)) {
+    return parsedYaml;
+  }
+  return null;
+}
+
+function extractActs(root) {
+  const screenplay = extractScreenplayRoot(root) || root;
+  if (!screenplay || typeof screenplay !== "object") {
+    return [];
+  }
+  if (Array.isArray(screenplay.acts)) {
+    return screenplay.acts.filter((act) => act && typeof act === "object");
+  }
+  if (Array.isArray(screenplay.scenes)) {
+    return [{ title: screenplay.title || screenplay.meta?.title || "第1幕", scenes: screenplay.scenes }];
+  }
+  return [];
+}
+
+function extractScenes(act) {
+  if (!act || typeof act !== "object") {
+    return [];
+  }
+  const scenes = act.scenes || act.scene || act.sequences;
+  if (Array.isArray(scenes)) {
+    return scenes.filter((scene) => scene && typeof scene === "object");
+  }
+  if (scenes && typeof scenes === "object") {
+    return [scenes];
+  }
+  return [];
+}
+
+function extractDialogues(scene) {
+  const dialogues = [];
+  appendDialogueItems(dialogues, scene?.dialogues);
+  appendDialogueItems(dialogues, scene?.dialogue);
+  appendDialogueItems(dialogues, scene?.lines);
+  extractBeats(scene)
+    .filter(isDialogueBeat)
+    .forEach((beat) => {
+      appendDialogueItems(dialogues, {
+        character: beat.character || beat.speaker || beat.name,
+        line: beat.line || beat.text || beat.dialogue || beat.content,
+      });
+    });
+  return dialogues.filter((dialogue) => stringifyValue(dialogue.line || dialogue.text || dialogue.dialogue || dialogue.content));
+}
+
+function appendDialogueItems(target, value) {
+  if (!value) {
+    return;
+  }
+  const items = Array.isArray(value) ? value : [value];
+  items.forEach((item) => {
+    if (typeof item === "string" || typeof item === "number") {
+      target.push({ character: "旁白", line: stringifyValue(item) });
+    } else if (item && typeof item === "object") {
+      target.push({
+        ...item,
+        character: item.character || item.speaker || item.name || item.character_name || item.role || "旁白",
+        line: item.line || item.text || item.dialogue || item.content || "",
+      });
+    }
+  });
+}
+
+function extractBeats(scene) {
+  const beats = scene?.beats || scene?.beat;
+  if (Array.isArray(beats)) {
+    return beats.filter(Boolean);
+  }
+  if (beats) {
+    return [beats];
+  }
+  return [];
+}
+
+function extractActions(scene) {
+  const actions = [];
+  appendActionItems(actions, scene?.actions);
+  appendActionItems(actions, scene?.action);
+  appendActionItems(actions, scene?.narration);
+  appendActionItems(actions, scene?.description);
+  appendActionItems(actions, scene?.summary);
+  extractBeats(scene)
+    .filter((beat) => !isDialogueBeat(beat) && isActionLikeBeat(beat))
+    .forEach((beat) => appendActionItems(actions, beat));
+  return uniqueNonEmpty(actions);
+}
+
+function appendActionItems(target, value) {
+  if (!value) {
+    return;
+  }
+  const items = Array.isArray(value) ? value : [value];
+  items.forEach((item) => {
+    const text = formatActionItem(item);
+    if (text) {
+      target.push(text);
+    }
+  });
+}
+
+function formatActionItem(item) {
+  if (typeof item === "string" || typeof item === "number") {
+    return stringifyValue(item);
+  }
+  if (item && typeof item === "object") {
+    return stringifyValue(item.content || item.text || item.action || item.narration || item.description || item.summary || item.line);
+  }
+  return "";
+}
+
+function isDialogueBeat(beat) {
+  if (!beat || typeof beat !== "object") {
+    return false;
+  }
+  const type = stringifyValue(beat.type || beat.kind || beat.category).toLowerCase();
+  return type.includes("dialogue") || type.includes("dialog") || type.includes("line") || type.includes("对白");
+}
+
+function isActionLikeBeat(beat) {
+  if (!beat || typeof beat !== "object") {
+    return false;
+  }
+  const type = stringifyValue(beat.type || beat.kind || beat.category).toLowerCase();
+  return !type || type.includes("action") || type.includes("narration") || type.includes("beat") || type.includes("动作") || type.includes("旁白");
+}
+
+function formatBeat(beat) {
+  if (typeof beat === "string" || typeof beat === "number") {
+    return stringifyValue(beat);
+  }
+  const type = stringifyValue(beat.type || beat.kind || beat.category);
+  const content = stringifyValue(beat.content || beat.text || beat.action || beat.narration || beat.summary || beat.line);
+  return type && content ? `${type}：${content}` : content || type || "未注明节拍";
+}
+
+function getSceneTitle(scene, sceneIndex) {
+  return (
+    stringifyValue(scene?.title || scene?.scene_title || scene?.heading || scene?.name || scene?.scene_id || scene?.scene_number) ||
+    `第${sceneIndex + 1}场`
+  );
+}
+
+function getSceneChapterId(scene) {
+  return (
+    stringifyValue(scene?.source_chapter_id || scene?.source || scene?.chapter_id || scene?.source_chapters?.[0] || scene?.chapter) ||
+    "暂无章节 ID"
+  );
+}
+
+function extractCharacters(scene, screenplay) {
+  const rawCharacters =
+    scene?.characters ||
+    scene?.characters_present ||
+    scene?.character_names ||
+    scene?.cast ||
+    scene?.roles ||
+    [];
+  const names = normalizeCharacterNames(rawCharacters, screenplay);
+  return names.length ? names : inferCharactersFromDialogues(extractDialogues(scene));
+}
+
+function normalizeCharacterNames(characters, screenplay) {
+  const characterMap = buildCharacterNameMap(screenplay);
+  const items = Array.isArray(characters) ? characters : characters ? [characters] : [];
+  return items
+    .map((character) => {
+      if (typeof character === "string" || typeof character === "number") {
+        const key = stringifyValue(character);
+        return characterMap.get(key) || key;
+      }
+      if (character && typeof character === "object") {
+        const key = stringifyValue(character.name || character.character || character.character_id || character.id || character.speaker);
+        return characterMap.get(key) || key;
+      }
+      return "";
+    })
+    .filter(Boolean);
+}
+
+function buildCharacterNameMap(screenplay) {
+  const map = new Map();
+  const characters = Array.isArray(screenplay?.characters) ? screenplay.characters : [];
+  characters.forEach((character) => {
+    if (!character || typeof character !== "object") {
+      return;
+    }
+    const name = stringifyValue(character.name || character.character || character.speaker);
+    [character.character_id, character.id, character.name].forEach((key) => {
+      const normalizedKey = stringifyValue(key);
+      if (normalizedKey && name) {
+        map.set(normalizedKey, name);
+      }
+    });
+  });
+  return map;
+}
+
+function inferCharactersFromDialogues(dialogues) {
+  return uniqueNonEmpty(dialogues.map((dialogue) => stringifyValue(dialogue.character || dialogue.speaker || dialogue.name)));
+}
+
+function collectActChapterIds(act, scenes) {
+  const chapterIds = []
+    .concat(Array.isArray(act?.source_chapters) ? act.source_chapters : [])
+    .concat(act?.source_chapter_id || act?.source || [])
+    .concat(scenes.map((scene) => getSceneChapterId(scene)).filter((chapterId) => chapterId !== "暂无章节 ID"))
+    .map((chapterId) => stringifyValue(chapterId))
+    .filter(Boolean);
+  return chapterIds.length ? Array.from(new Set(chapterIds)).join(", ") : "暂无章节 ID";
+}
+
+function uniqueNonEmpty(values) {
+  return Array.from(new Set(values.map((value) => stringifyValue(value)).filter(Boolean)));
+}
+
+function getActs(screenplay) {
+  return extractActs(screenplay);
+}
+
+function parseCurrentScreenplayYaml() {
+  try {
+    const data = parseSimpleYaml(getCurrentYaml());
+    const screenplay = extractScreenplayRoot(data);
+    if (!screenplay) {
+      return null;
+    }
+    return { data, screenplay };
+  } catch (error) {
+    return null;
+  }
+}
+
+function renderPartialRenderTargets(screenplay, selectedValue = "") {
+  const acts = extractActs(screenplay);
+  const options = ['<option value="">选择要重渲染的幕或场</option>'];
+
+  acts.forEach((act, actIndex) => {
+    const actTitle = escapeHtml(stringifyValue(act.title || act.name || act.heading || act.act_id) || `第${actIndex + 1}幕`);
+    options.push(`<option value="act:${actIndex}">第${actIndex + 1}幕：${actTitle}</option>`);
+
+    extractScenes(act).forEach((scene, sceneIndex) => {
+      const sceneTitle = escapeHtml(getSceneTitle(scene, sceneIndex));
+      options.push(`<option value="scene:${actIndex}:${sceneIndex}">第${actIndex + 1}幕 / 第${sceneIndex + 1}场：${sceneTitle}</option>`);
+    });
+  });
+
+  elements.partialRenderTargetSelect.innerHTML = options.join("");
+  if (selectedValue && elements.partialRenderTargetSelect.querySelector(`option[value="${selectedValue}"]`)) {
+    elements.partialRenderTargetSelect.value = selectedValue;
+  }
+  renderPartialRenderStatus("选择幕或场后，可以仅重渲染该部分。", "info", true);
+}
+
+function formatPartialTargetLabel(screenplay, target) {
+  const acts = extractActs(screenplay);
+  const act = acts[target.actIndex] || {};
+  const actTitle = stringifyValue(act.title || act.name || act.heading || act.act_id) || `第${target.actIndex + 1}幕`;
+  if (target.type === "act") {
+    return `第${target.actIndex + 1}幕：${actTitle}`;
+  }
+
+  const scenes = extractScenes(act);
+  const scene = scenes[target.sceneIndex] || {};
+  const sceneTitle = getSceneTitle(scene, target.sceneIndex);
+  return `第${target.actIndex + 1}幕 / 第${target.sceneIndex + 1}场：${sceneTitle}`;
+}
+
+function refreshQualityReport(screenplay) {
+  if (!screenplay || typeof screenplay !== "object") {
+    return;
+  }
+
+  const acts = extractActs(screenplay);
+  const scenes = acts.flatMap((act) => extractScenes(act));
+  const coveredChapters = new Set(
+    scenes
+      .map((scene) => getSceneChapterId(scene))
+      .filter((chapterId) => chapterId && chapterId !== "暂无章节 ID"),
+  );
+  const chapterCount = Number(screenplay.source_novel?.chapter_count || screenplay.quality_report?.chapter_count || coveredChapters.size || 0);
+  const characterCount = Array.isArray(screenplay.characters) ? screenplay.characters.length : 0;
+  const coverageRate = chapterCount > 0 ? Math.min(coveredChapters.size / chapterCount, 1) : 0;
+
+  screenplay.quality_report = {
+    ...(screenplay.quality_report || {}),
+    chapter_count: chapterCount,
+    scene_count: scenes.length,
+    character_count: characterCount,
+    chapter_coverage_rate: Number(coverageRate.toFixed(2)),
+  };
+}
+
+function parseReadableScreenplay(yamlText) {
+  const data = parseSimpleYaml(yamlText);
+  const parsedRoot = extractParsedScreenplayRoot(data);
+  if (parsedRoot && countScenes(parsedRoot) > 0) {
+    return { data, screenplay: normalizeReadableScreenplay(parsedRoot), source: "parseSimpleYaml", fallbackEnabled: false };
+  }
+
+  const extracted = extractReadableScreenplayFromYamlText(yamlText);
+  if (extracted) {
+    return {
+      data: { screenplay: extracted },
+      screenplay: extracted,
+      source: "textExtractor",
+      fallbackEnabled: true,
+      parsedData: data,
+    };
+  }
+
+  return {
+    data,
+    screenplay: normalizeReadableScreenplay(parsedRoot || {}),
+    source: "empty",
+    fallbackEnabled: !parsedRoot || countScenes(parsedRoot) === 0,
+  };
+}
+
+function logReadableScriptDebug(yamlText, data, root, source, fallbackEnabled = false) {
+  const acts = extractActs(root);
+  const sceneCount = countScenes(root);
+  console.debug("[readable-script] YAML preview:", yamlText.slice(0, 500));
+  console.debug("[readable-script] parsed top-level keys:", data && typeof data === "object" ? Object.keys(data) : []);
+  console.debug("[readable-script] parsed.screenplay exists:", Boolean(data && data.screenplay));
+  console.debug("[readable-script] acts length:", acts.length);
+  console.debug("[readable-script] scenes total:", sceneCount);
+  console.debug("[readable-script] fallback enabled:", Boolean(fallbackEnabled));
+  console.debug("[readable-script] parser source:", source);
+}
+
+function countScenes(screenplay) {
+  return extractActs(screenplay).reduce((total, act) => total + extractScenes(act).length, 0);
+}
+
+function extractParsedScreenplayRoot(parsedYaml) {
+  if (!parsedYaml || typeof parsedYaml !== "object") {
+    return null;
+  }
+  return parsedYaml.screenplay || parsedYaml.screen_play || parsedYaml.script || parsedYaml;
+}
+
+function createReadableScreenplay() {
+  return {
+    title: "",
+    meta: {},
+    characters: [],
+    acts: [],
+  };
+}
+
+function createReadableAct() {
+  return {
+    act_id: "",
+    title: "",
+    name: "",
+    scenes: [],
+  };
+}
+
+function createReadableScene() {
+  return {
+    scene_id: "",
+    title: "",
+    name: "",
+    source_chapter_id: "",
+    location: "",
+    time: "",
+    characters: [],
+    summary: "",
+    dialogues: [],
+    actions: [],
+    beats: [],
+  };
+}
+
+function normalizeReadableScreenplay(screenplayLike) {
+  const root = extractScreenplayRoot(screenplayLike) || screenplayLike || {};
+  const screenplay = {
+    ...root,
+    title: stringifyValue(root.meta?.title || root.title) || "未命名剧本",
+    meta: root.meta && typeof root.meta === "object" ? root.meta : {},
+    characters: Array.isArray(root.characters) ? root.characters : [],
+    acts: extractActs(root).map((act) => normalizeReadableAct(act)),
+  };
+  return screenplay;
+}
+
+function normalizeReadableAct(act) {
+  return {
+    ...act,
+    act_id: stringifyValue(act.act_id || act.id || act.act_number),
+    title: stringifyValue(act.title || act.act_title || act.name || act.heading || act.act_id),
+    name: stringifyValue(act.name || act.title || act.act_title),
+    scenes: extractScenes(act).map((scene) => normalizeReadableScene(scene)),
+  };
+}
+
+function normalizeReadableScene(scene) {
+  return {
+    ...scene,
+    scene_id: stringifyValue(scene.scene_id || scene.id || scene.scene_number),
+    title: stringifyValue(scene.title || scene.scene_title || scene.name || scene.heading || scene.scene_id),
+    name: stringifyValue(scene.name || scene.title || scene.scene_title),
+    source_chapter_id: stringifyValue(scene.source_chapter_id || scene.source || scene.chapter_id || scene.source_chapters?.[0] || scene.chapter),
+    location: stringifyValue(scene.location || scene.place || scene.setting),
+    time: stringifyValue(scene.time || scene.time_of_day || scene.period),
+    characters: ensureReadableListValue(scene.characters || scene.character_ids || scene.characters_present),
+    summary: stringifyValue(scene.summary || scene.description || scene.synopsis),
+    dialogues: extractDialogues(scene),
+    actions: ensureReadableListValue(scene.actions || scene.action).length ? ensureReadableListValue(scene.actions || scene.action) : extractActions(scene),
+    beats: ensureReadableListValue(scene.beats || scene.beat),
+  };
+}
+
+function ensureReadableListValue(value) {
+  if (Array.isArray(value)) {
+    return value;
+  }
+  if (value === null || value === undefined || value === "") {
+    return [];
+  }
+  return [value];
+}
+
+function extractReadableScreenplayFromYamlText(yamlText) {
+  const lines = normalizeYamlLines(yamlText);
+  const screenplay = createReadableScreenplay();
+  if (!lines.length) {
+    return screenplay;
+  }
+
+  const characterMap = new Map();
+  let rootIndent = null;
+  let metaIndent = -1;
+  let charactersIndent = -1;
+  let actsIndent = -1;
+  let currentCharacter = null;
+  let currentCharacterIndent = -1;
+  let currentAct = null;
+  let currentActIndent = -1;
+  let currentScene = null;
+  let currentSceneIndent = -1;
+  let scenesIndent = -1;
+  let currentList = null;
+  let currentListItem = null;
+  let currentListItemIndent = -1;
+  let currentListOwner = null;
+  let inScenes = false;
+
+  lines.forEach((line) => {
+    const { indent, text } = line;
+    const keyValue = splitYamlKeyValue(text);
+
+    if (isScreenplayRootLine(text)) {
+      rootIndent = indent;
+      resetReadableYamlSectionState();
+      return;
+    }
+
+    if (rootIndent !== null && indent <= rootIndent) {
+      resetReadableYamlSectionState();
+      return;
+    }
+
+    if (rootIndent === null && !isLikelyRootScreenplayLine(text) && actsIndent < 0 && metaIndent < 0 && charactersIndent < 0) {
+      return;
+    }
+
+    if (metaIndent >= 0 && indent <= metaIndent) {
+      metaIndent = -1;
+    }
+    if (charactersIndent >= 0 && indent <= charactersIndent) {
+      charactersIndent = -1;
+      currentCharacter = null;
+      currentCharacterIndent = -1;
+    }
+
+    if (text === "meta:") {
+      metaIndent = indent;
+      charactersIndent = -1;
+      actsIndent = -1;
+      currentList = null;
+      return;
+    }
+    if (text === "characters:") {
+      charactersIndent = indent;
+      metaIndent = -1;
+      actsIndent = -1;
+      currentCharacter = null;
+      currentList = null;
+      return;
+    }
+    if (text === "acts:") {
+      actsIndent = indent;
+      metaIndent = -1;
+      charactersIndent = -1;
+      currentCharacter = null;
+      currentList = null;
+      return;
+    }
+
+    if (!currentAct && keyValue && keyValue.key === "title") {
+      screenplay.title = parseYamlScalar(keyValue.rawValue);
+      return;
+    }
+
+    if (metaIndent >= 0 && indent > metaIndent && keyValue) {
+      screenplay.meta[keyValue.key] = parseYamlScalar(keyValue.rawValue);
+      if (keyValue.key === "title") {
+        screenplay.title = parseYamlScalar(keyValue.rawValue);
+      }
+      return;
+    }
+
+    if (charactersIndent >= 0 && indent > charactersIndent && text.startsWith("- ")) {
+      currentCharacter = {};
+      currentCharacterIndent = indent;
+      screenplay.characters.push(currentCharacter);
+      assignListItemObject(currentCharacter, text.slice(2).trim());
+      addCharacterMapEntries(characterMap, currentCharacter);
+      currentList = null;
+      return;
+    }
+    if (currentCharacter && charactersIndent >= 0 && indent > currentCharacterIndent && keyValue) {
+      currentCharacter[keyValue.key] = parseYamlScalar(keyValue.rawValue);
+      addCharacterMapEntries(characterMap, currentCharacter);
+      return;
+    }
+
+    if (actsIndent >= 0 && text.startsWith("- ") && indent > actsIndent && (!currentAct || indent <= currentActIndent)) {
+      currentAct = createReadableAct();
+      currentActIndent = indent;
+      screenplay.acts.push(currentAct);
+      currentScene = null;
+      currentSceneIndent = -1;
+      scenesIndent = -1;
+      currentList = null;
+      currentListItem = null;
+      currentListItemIndent = -1;
+      currentListOwner = null;
+      inScenes = false;
+      assignListItemObject(currentAct, text.slice(2).trim());
+      return;
+    }
+
+    if (!currentAct || actsIndent < 0 || indent <= actsIndent) {
+      return;
+    }
+
+    if (text === "scenes:" && indent > currentActIndent) {
+      currentScene = null;
+      currentSceneIndent = -1;
+      scenesIndent = indent;
+      currentList = null;
+      currentListItem = null;
+      currentListItemIndent = -1;
+      currentListOwner = null;
+      inScenes = true;
+      return;
+    }
+
+    if (text.startsWith("- ")) {
+      const itemText = text.slice(2).trim();
+      if (!inScenes) {
+        if (currentList && indent > currentActIndent) {
+          currentListItem = appendYamlListValue(currentAct, currentList, itemText);
+          currentListItemIndent = indent;
+          currentListOwner = "act";
+        }
+      } else if (indent > scenesIndent && (!currentScene || indent <= currentSceneIndent)) {
+        currentScene = createReadableScene();
+        currentSceneIndent = indent;
+        currentAct.scenes.push(currentScene);
+        currentList = null;
+        currentListItem = null;
+        currentListItemIndent = -1;
+        currentListOwner = null;
+        assignListItemObject(currentScene, itemText);
+      } else if (currentList && currentScene && indent > currentSceneIndent) {
+        currentListItem = appendYamlListValue(currentScene, currentList, itemText);
+        currentListItemIndent = indent;
+        currentListOwner = "scene";
+      }
+      return;
+    }
+
+    if (!keyValue) {
+      return;
+    }
+
+    if (currentList && currentListItem && indent > currentListItemIndent && isNestedListObjectKey(keyValue.key)) {
+      if (currentListOwner === "scene" || currentListOwner === "act") {
+        currentListItem[keyValue.key] = parseYamlScalar(keyValue.rawValue);
+        return;
+      }
+    }
+
+    if (inScenes && currentScene && indent > currentSceneIndent) {
+      const value = parseYamlScalar(keyValue.rawValue);
+      if (keyValue.rawValue === "") {
+        currentScene[keyValue.key] = ensureReadableListValue(currentScene[keyValue.key]);
+        currentList = keyValue.key;
+        currentListItem = null;
+        currentListItemIndent = -1;
+        currentListOwner = "scene";
+      } else {
+        currentScene[keyValue.key] = value;
+        currentList = null;
+        currentListItem = null;
+        currentListItemIndent = -1;
+        currentListOwner = null;
+      }
+      return;
+    }
+
+    if (keyValue.rawValue === "") {
+      currentAct[keyValue.key] = ensureReadableListValue(currentAct[keyValue.key]);
+      currentList = keyValue.key;
+      currentListItem = null;
+      currentListItemIndent = -1;
+      currentListOwner = "act";
+    } else {
+      currentAct[keyValue.key] = parseYamlScalar(keyValue.rawValue);
+      currentList = null;
+      currentListItem = null;
+      currentListItemIndent = -1;
+      currentListOwner = null;
+    }
+  });
+
+  normalizeExtractedReadableScreenplay(screenplay);
+  hydrateSceneCharacters(screenplay, characterMap);
+  return screenplay;
+
+  function resetReadableYamlSectionState() {
+    metaIndent = -1;
+    charactersIndent = -1;
+    actsIndent = -1;
+    currentCharacter = null;
+    currentCharacterIndent = -1;
+    currentAct = null;
+    currentActIndent = -1;
+    currentScene = null;
+    currentSceneIndent = -1;
+    scenesIndent = -1;
+    currentList = null;
+    currentListItem = null;
+    currentListItemIndent = -1;
+    currentListOwner = null;
+    inScenes = false;
+  }
+}
+
+function normalizeYamlLines(yamlText) {
+  return yamlText
+    .replace(/\r\n/g, "\n")
+    .replace(/\t/g, "  ")
+    .split("\n")
+    .map((line) => line.replace(/\s+$/, ""))
+    .filter((line) => line.trim() && !line.trim().startsWith("#") && !line.trim().startsWith("```"))
+    .map((raw) => ({
+      indent: raw.length - raw.trimStart().length,
+      text: raw.trim(),
+    }));
+}
+
+function isScreenplayRootLine(text) {
+  return text === "screenplay:" || text === "screen_play:" || text === "script:";
+}
+
+function isLikelyRootScreenplayLine(text) {
+  return text === "meta:" || text === "acts:" || text === "characters:" || text.startsWith("title:");
+}
+
+function splitYamlKeyValue(text) {
+  const separatorIndex = text.indexOf(":");
+  if (separatorIndex === -1) {
+    return null;
+  }
+  return {
+    key: text.slice(0, separatorIndex).trim(),
+    rawValue: text.slice(separatorIndex + 1).trim(),
+  };
+}
+
+function assignListItemObject(target, itemText) {
+  if (!itemText) {
+    return;
+  }
+  const keyValue = splitYamlKeyValue(itemText);
+  if (keyValue) {
+    target[keyValue.key] = parseYamlScalar(keyValue.rawValue);
+  }
+}
+
+function appendYamlListValue(target, key, itemText) {
+  if (!Array.isArray(target[key])) {
+    target[key] = [];
+  }
+  const keyValue = splitYamlKeyValue(itemText);
+  if (keyValue) {
+    const item = { [keyValue.key]: parseYamlScalar(keyValue.rawValue) };
+    target[key].push(item);
+    return item;
+  } else {
+    const item = parseYamlScalar(itemText);
+    target[key].push(item);
+    return item && typeof item === "object" ? item : null;
+  }
+}
+
+function isNestedListObjectKey(key) {
+  return [
+    "type",
+    "kind",
+    "category",
+    "speaker",
+    "character",
+    "character_name",
+    "name",
+    "line",
+    "text",
+    "dialogue",
+    "content",
+    "action",
+    "narration",
+    "description",
+    "summary",
+  ].includes(key);
+}
+
+function getActSceneListIndent(act) {
+  return Number.isFinite(act.__sceneListIndent) ? act.__sceneListIndent : Number.POSITIVE_INFINITY;
+}
+
+function deleteTemporarySceneIndent(acts) {
+  acts.forEach((act) => {
+    delete act.__sceneListIndent;
+  });
+}
+
+function normalizeExtractedReadableScreenplay(screenplay) {
+  screenplay.meta = screenplay.meta && typeof screenplay.meta === "object" ? screenplay.meta : {};
+  screenplay.title = stringifyValue(screenplay.meta.title || screenplay.title) || "未命名剧本";
+  screenplay.characters = Array.isArray(screenplay.characters) ? screenplay.characters : [];
+  screenplay.acts = ensureReadableListValue(screenplay.acts).map((act) => {
+    const normalizedAct = {
+      ...createReadableAct(),
+      ...(act && typeof act === "object" ? act : {}),
+    };
+    normalizedAct.act_id = stringifyValue(normalizedAct.act_id || normalizedAct.id || normalizedAct.act_number);
+    normalizedAct.title = stringifyValue(normalizedAct.title || normalizedAct.act_title || normalizedAct.name || normalizedAct.heading || normalizedAct.act_id);
+    normalizedAct.name = stringifyValue(normalizedAct.name || normalizedAct.title);
+    normalizedAct.scenes = ensureReadableListValue(normalizedAct.scenes).map((scene) => {
+      const normalizedScene = {
+        ...createReadableScene(),
+        ...(scene && typeof scene === "object" ? scene : {}),
+      };
+      normalizedScene.scene_id = stringifyValue(normalizedScene.scene_id || normalizedScene.id || normalizedScene.scene_number);
+      normalizedScene.title = stringifyValue(normalizedScene.title || normalizedScene.scene_title || normalizedScene.name || normalizedScene.heading || normalizedScene.scene_id);
+      normalizedScene.name = stringifyValue(normalizedScene.name || normalizedScene.title);
+      normalizedScene.source_chapter_id = stringifyValue(
+        normalizedScene.source_chapter_id ||
+          normalizedScene.source ||
+          normalizedScene.chapter_id ||
+          normalizedScene.source_chapters?.[0] ||
+          normalizedScene.chapter,
+      );
+      normalizedScene.location = stringifyValue(normalizedScene.location || normalizedScene.place || normalizedScene.setting);
+      normalizedScene.time = stringifyValue(normalizedScene.time || normalizedScene.time_of_day || normalizedScene.period);
+      normalizedScene.characters = ensureReadableListValue(
+        normalizedScene.characters || normalizedScene.character_ids || normalizedScene.characters_present,
+      );
+      normalizedScene.summary = stringifyValue(normalizedScene.summary || normalizedScene.description || normalizedScene.synopsis);
+      normalizedScene.dialogues = extractDialogues(normalizedScene);
+      normalizedScene.actions = ensureReadableListValue(normalizedScene.actions || normalizedScene.action);
+      normalizedScene.beats = ensureReadableListValue(normalizedScene.beats || normalizedScene.beat);
+      return normalizedScene;
+    });
+    return normalizedAct;
+  });
+  return screenplay;
+}
+
+function addCharacterMapEntries(characterMap, character) {
+  const name = stringifyValue(character.name || character.character || character.speaker);
+  if (!name) {
+    return;
+  }
+  [character.character_id, character.id, character.name].forEach((key) => {
+    const normalizedKey = stringifyValue(key);
+    if (normalizedKey) {
+      characterMap.set(normalizedKey, name);
+    }
+  });
+}
+
+function hydrateSceneCharacters(screenplay, characterMap) {
+  screenplay.acts.forEach((act) => {
+    extractScenes(act).forEach((scene) => {
+      const ids = scene.characters || scene.character_ids || scene.characters_present;
+      const names = normalizeCharacterNames(ids, screenplay);
+      if (names.length) {
+        scene.characters = names.map((name) => characterMap.get(name) || name);
+      }
+    });
+  });
+}
+
 function parseSimpleYaml(yamlText) {
   const lines = yamlText
     .replace(/\r\n/g, "\n")
@@ -1380,7 +2200,7 @@ function parseSimpleYaml(yamlText) {
         text: raw.trim(),
       };
     })
-    .filter((line) => line.text && !line.text.startsWith("#"));
+    .filter((line) => line.text && !line.text.startsWith("#") && !line.text.startsWith("```"));
 
   if (!lines.length) {
     return {};
@@ -1531,6 +2351,9 @@ function parseYamlScalar(value) {
   }
   if (value.startsWith("[") && value.endsWith("]")) {
     return parseInlineArray(value);
+  }
+  if (value === "{}") {
+    return {};
   }
   if (/^-?\d+(\.\d+)?$/.test(value)) {
     return Number(value);

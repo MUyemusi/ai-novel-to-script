@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>叙构 | 欢迎页</title>
-  <link rel="stylesheet" href="styles.css?v=20260607c">
+  <link rel="stylesheet" href="styles.css?v=20260607e">
 </head>
 <body>
   <div class="welcome-shell">
@@ -20,9 +20,9 @@
         <label class="noise-control" for="noiseSelect">
           <span>环境音</span>
           <select id="noiseSelect" aria-label="环境音选择">
-            <option value="白噪音">白噪音</option>
-            <option value="雨声" selected>雨声</option>
-            <option value="下雪">下雪</option>
+            <option value="off" selected>关闭</option>
+            <option value="fireplace">篝火</option>
+            <option value="rain">雨声</option>
           </select>
         </label>
       </div>
@@ -34,8 +34,6 @@
           <h2>对话记忆</h2>
           <button type="button" class="icon-button" id="closeSidebarBtn" aria-label="收起记忆栏">−</button>
         </div>
-
-        <button type="button" class="create-memory-btn" id="createMemoryBtn">＋ 开始新创作</button>
 
         <div class="memory-list-wrapper">
           <div class="memory-list" id="memoryList"></div>
@@ -63,6 +61,46 @@
     </main>
   </div>
 
-  <script src="app.js?v=20260607c"></script>
+  <div class="modal-backdrop notebook-modal-backdrop" id="createNotebookModal" hidden>
+    <div class="notebook-modal-card" role="dialog" aria-modal="true" aria-labelledby="createNotebookModalTitle">
+      <button type="button" class="modal-close notebook-modal-close" id="closeNotebookModalBtn" aria-label="关闭创建笔记本弹窗">×</button>
+      <div class="notebook-modal-header">
+        <p class="modal-kicker">Create</p>
+        <h2 id="createNotebookModalTitle">创建新笔记本</h2>
+      </div>
+
+      <form class="notebook-modal-form" id="createNotebookForm">
+        <label class="notebook-field-group" for="notebookTitleInput">
+          <span class="notebook-field-label">笔记本名称</span>
+          <input
+            id="notebookTitleInput"
+            name="title"
+            type="text"
+            maxlength="80"
+            placeholder="例如：长篇世界观设定"
+            required
+          >
+        </label>
+
+        <label class="notebook-field-group" for="notebookDescriptionInput">
+          <span class="notebook-field-label">笔记本说明</span>
+          <textarea
+            id="notebookDescriptionInput"
+            name="description"
+            rows="6"
+            maxlength="240"
+            placeholder="补充这个笔记本的用途、当前进度或写作方向。"
+          ></textarea>
+        </label>
+
+        <p class="notebook-form-message" id="createNotebookMessage" hidden></p>
+
+        <button type="submit" class="notebook-submit-btn" id="submitNotebookBtn">创建笔记本</button>
+      </form>
+    </div>
+  </div>
+
+  <script src="audio-player.js?v=20260607e"></script>
+  <script src="app.js?v=20260607e"></script>
 </body>
 </html>

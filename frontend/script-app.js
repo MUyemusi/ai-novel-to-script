@@ -34,6 +34,9 @@ const state = {
   isRestoringScriptState: false,
   scriptStatePersistTimer: null,
   isGeneratingYaml: false,
+  isChatOpen: false,
+  isSendingMessage: false,
+  conversations: [],
   validationResult: null,
   previewReady: false,
   previewModalOpen: false,
@@ -88,6 +91,14 @@ function initApp() {
     summary: document.getElementById("summaryView"),
   };
 
+  elements.chatDrawer = document.getElementById("chatDrawer");
+  elements.chatStream = document.getElementById("chatStream");
+  elements.chatInput = document.getElementById("chatInput");
+  elements.openChatBtn = document.getElementById("openChatBtn");
+  elements.closeChatBtn = document.getElementById("closeChatBtn");
+  elements.chatComposerForm = document.getElementById("chatComposerForm");
+  elements.chatBadge = document.getElementById("chatBadge");
+
   elements.toneSelect = document.getElementById("toneSelect");
   elements.mediumSelect = document.getElementById("mediumSelect");
   elements.toneIntensity = document.getElementById("toneIntensity");
@@ -129,6 +140,10 @@ function initApp() {
   elements.toneIntensity.addEventListener("input", handleAdaptationInputChange);
   elements.adaptationDegree.addEventListener("input", handleAdaptationInputChange);
   elements.dialoguePreservationDegree.addEventListener("input", handleAdaptationInputChange);
+
+  elements.openChatBtn.addEventListener("click", () => toggleChatDrawer(true));
+  elements.closeChatBtn.addEventListener("click", () => toggleChatDrawer(false));
+  elements.chatComposerForm.addEventListener("submit", handleChatSubmit);
 
   updateTextStats();
   resetChapterResults();
@@ -561,7 +576,15 @@ async function initializeMemorySource() {
     }
 
     state.linkedNotebookSummary = data.notebook || null;
+    state.conversations = data.conversations || [];
     state.pendingScriptState = data.script_state || null;
+    
+    if (state.linkedNotebookId) {
+      elements.openChatBtn.hidden = false;
+      updateChatBadge();
+      renderChatStream();
+    }
+    
     applyPendingScriptState();
   } catch (error) {
     state.linkedNotebookSummary = null;
@@ -719,6 +742,102 @@ function restoreScriptState(scriptState) {
   } finally {
     state.isRestoringScriptState = false;
   }
+}
+
+function toggleChatDrawer(isOpen) {
+  state.isChatOpen = isOpen;
+  elements.chatDrawer.classList.toggle("open", isOpen);
+  if (isOpen) {
+    elements.chatBadge.hidden = true;
+    elements.chatInput.focus();
+    renderChatStream();
+  }
+}
+
+async function handleChatSubmit(event) {
+  event.preventDefault();
+  const message = elements.chatInput.value.trim();
+  if (!message || state.isSendingMessage || !state.linkedNotebookId) {
+    return;
+  }
+
+  state.isSendingMessage = true;
+  elements.chatInput.value = "";
+  
+  // Optimistically add user message
+  const userMsg = {
+    role: "user",
+    content: message,
+    created_at: new Date().toISOString(),
+  };
+  state.conversations.push(userMsg);
+  renderChatStream();
+
+  try {
+    // Before sending, we should persist the latest script state so the AI sees it
+    await persistScriptState({ immediate: true });
+
+    const response = await fetch(`${API_BASE_URL}/notebooks/${encodeURIComponent(state.linkedNotebookId)}/conversations`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message }),
+    });
+    
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.detail || "消息发送失败");
+    }
+
+    state.conversations = data.conversations || [];
+    state.linkedNotebookSummary = data.notebook || state.linkedNotebookSummary;
+    renderChatStream();
+    updateChatBadge();
+  } catch (error) {
+    console.error("Chat error:", error);
+    showStatus("AI 助理响应失败，请重试。", "warning");
+  } finally {
+    state.isSendingMessage = false;
+  }
+}
+
+function renderChatStream() {
+  if (!state.conversations.length) {
+    elements.chatStream.innerHTML = '<div class="empty-state">你可以问我关于角色设定、剧本逻辑或后续创作的建议。</div>';
+    return;
+  }
+
+  elements.chatStream.innerHTML = state.conversations
+    .map(msg => {
+      const roleLabel = msg.role === "user" ? "用户" : msg.role === "assistant" ? "AI 助理" : "系统";
+      return `
+        <div class="message-row ${escapeHtml(msg.role)}">
+          <div class="message-bubble">
+            <span class="message-role">${escapeHtml(roleLabel)}</span>
+            <div class="message-content">${escapeHtml(msg.content)}</div>
+          </div>
+          <div class="message-time">${formatChatTime(msg.created_at)}</div>
+        </div>
+      `;
+    })
+    .join("");
+  
+  elements.chatStream.scrollTop = elements.chatStream.scrollHeight;
+}
+
+function updateChatBadge() {
+  const count = state.conversations.length;
+  if (count > 0 && !state.isChatOpen) {
+    elements.chatBadge.textContent = count;
+    elements.chatBadge.hidden = false;
+  } else {
+    elements.chatBadge.hidden = true;
+  }
+}
+
+function formatChatTime(isoString) {
+  if (!isoString) return "";
+  const date = new Date(isoString);
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
 
 function escapeHtml(value) {

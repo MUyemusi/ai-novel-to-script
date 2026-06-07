@@ -11,11 +11,15 @@ sys.path.insert(0, str(backend_path))
 
 def build_client(tmp_path, monkeypatch):
     monkeypatch.setenv("NOTEBOOKS_DATA_DIR", str(tmp_path / "notebooks-data"))
+    monkeypatch.setenv("USE_LLM", "false")
+    monkeypatch.delenv("LLM_API_KEY", raising=False)
 
     for module_name in [
         "main",
         "services.notebook_store",
+        "services.llm_client",
         "backend.services.notebook_store",
+        "backend.services.llm_client",
     ]:
         if module_name in sys.modules:
             del sys.modules[module_name]
@@ -85,6 +89,31 @@ def test_post_conversation_appends_user_and_assistant_messages(tmp_path, monkeyp
     assert data["assistant_message"]["role"] == "assistant"
     assert "mock 回复" in data["assistant_message"]["content"]
     assert len(data["conversations"]) >= 3
+
+
+def test_post_conversation_uses_llm_reply_when_enabled(tmp_path, monkeypatch):
+    client = build_client(tmp_path, monkeypatch)
+    notebook_id = client.get("/notebooks").json()["notebooks"][0]["id"]
+
+    monkeypatch.setenv("USE_LLM", "true")
+    monkeypatch.setenv("LLM_API_KEY", "test-key")
+
+    import backend.services.notebook_store as notebook_store_module
+
+    monkeypatch.setattr(
+        notebook_store_module,
+        "build_notebook_reply_with_llm",
+        lambda notebook: "这是来自大模型的正式回复。",
+    )
+
+    response = client.post(
+        f"/notebooks/{notebook_id}/conversations",
+        json={"message": "帮我分析一下这段人物关系。"},
+    )
+
+    assert response.status_code == 200
+    data = response.json()
+    assert data["assistant_message"]["content"] == "这是来自大模型的正式回复。"
 
 
 def test_post_script_state_persists_latest_workspace_snapshot(tmp_path, monkeypatch):

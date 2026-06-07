@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>叙构 | 多笔记本记忆系统</title>
-  <link rel="stylesheet" href="notebook-styles.css?v=20260607f">
+  <link rel="stylesheet" href="notebook-styles.css?v=20260607g">
 </head>
 <body>
   <div class="page-shell">
@@ -17,7 +17,7 @@
 
       <div class="topbar-center">
         <span class="topbar-pill">FastAPI + JSON/YAML</span>
-        <span class="topbar-pill">Mock AI Ready</span>
+        <span class="topbar-pill">LLM Chat Ready</span>
         <span class="topbar-pill">Persistent Memory</span>
       </div>
 
@@ -28,29 +28,8 @@
     </header>
 
     <main class="app-main">
-      <div class="status-banner info" id="statusBanner">正在加载笔记本列表……</div>
-
       <section class="home-view" id="homeView">
         <section class="panel hero-panel">
-          <div>
-            <p class="section-kicker">Overview</p>
-            <h2>多笔记本记忆系统</h2>
-          </div>
-          <p class="muted">把不同项目拆进不同笔记本，分别保存对话历史、摘要和上下文。点击某个笔记本后，会跳转到主剧本生成页继续创作。</p>
-          <div class="hero-metrics" id="heroMetrics">
-            <article class="metric-card">
-              <span>笔记本数量</span>
-              <strong id="homeNotebookCount">0</strong>
-            </article>
-            <article class="metric-card">
-              <span>累计消息</span>
-              <strong id="homeMessageCount">0</strong>
-            </article>
-            <article class="metric-card">
-              <span>最近更新时间</span>
-              <strong id="homeUpdatedAt">-</strong>
-            </article>
-          </div>
         </section>
 
         <div class="home-grid">
@@ -116,7 +95,7 @@
           <form id="chatComposerForm" class="composer-panel">
             <textarea id="chatInput" rows="4" placeholder="输入你想记录或讨论的内容，例如人物设定、剧情卡点、摘要整理……"></textarea>
             <div class="composer-actions">
-              <span class="muted">当前为 mock AI 回复，后续可接大模型。</span>
+              <span class="muted">当前对话会调用已配置的大模型，并持续保存在这个笔记本里。</span>
               <button type="submit" class="btn primary" id="sendMessageBtn">发送消息</button>
             </div>
           </form>
@@ -164,7 +143,7 @@
     </main>
   </div>
 
-  <script src="audio-player.js?v=20260607f"></script>
-  <script src="notebook-app.js?v=20260607f"></script>
+  <script src="audio-player.js?v=20260607g"></script>
+  <script src="notebook-app.js?v=20260607g"></script>
 </body>
 </html>

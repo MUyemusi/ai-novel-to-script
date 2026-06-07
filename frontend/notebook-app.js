@@ -40,7 +40,7 @@ function initApp() {
   elements.summaryLastMessage = document.getElementById("summaryLastMessage");
 
   if (elements.scriptGeneratorBtn) {
-    elements.scriptGeneratorBtn.addEventListener("click", goToScriptGenerator);
+    elements.scriptGeneratorBtn.addEventListener("click", () => goToScriptGenerator(state.selectedNotebookId));
   }
   if (elements.homeBtn) {
     elements.homeBtn.addEventListener("click", showHomeView);
@@ -167,7 +167,7 @@ async function handleSendMessage(event) {
 
   state.isSendingMessage = true;
   updateActionState();
-  setStatus("正在生成 mock 回复……", "info");
+  setStatus("正在联系 AI 创作助理……", "info");
 
   try {
     const response = await fetch(`${API_BASE_URL}/notebooks/${state.selectedNotebookId}/conversations`, {
@@ -179,7 +179,7 @@ async function handleSendMessage(event) {
     });
     const data = await response.json();
     if (!response.ok) {
-      throw new Error(data.detail || "发送消息失败");
+      throw new Error(data.detail || "消息发送失败");
     }
 
     elements.chatInput.value = "";
@@ -187,9 +187,9 @@ async function handleSendMessage(event) {
     syncNotebookSummary(data.notebook);
     renderNotebookCollections();
     renderWorkspaceShell();
-    setStatus("消息已保存，mock 回复已生成。", "success");
+    setStatus("消息已发送。", "success");
   } catch (error) {
-    setStatus(error.message || "发送消息失败。", "error");
+    setStatus(error.message || "发送失败，请重试。", "error");
   } finally {
     state.isSendingMessage = false;
     updateActionState();
@@ -291,12 +291,12 @@ function buildNotebookCard(notebook, variant) {
 }
 
 function buildMessageBubble(message) {
-  const roleLabel = message.role === "user" ? "User" : message.role === "assistant" ? "Assistant" : "System";
+  const roleLabel = message.role === "user" ? "用户" : message.role === "assistant" ? "AI 助理" : "系统";
   return `
     <div class="message-row ${escapeHtml(message.role)}">
       <article class="message-bubble">
         <span class="message-role">${escapeHtml(roleLabel)}</span>
-        <p class="message-content">${escapeHtml(message.content)}</p>
+        <div class="message-content">${escapeHtml(message.content)}</div>
         <span class="message-time">${escapeHtml(formatTimestamp(message.created_at))}</span>
       </article>
     </div>
@@ -337,8 +337,8 @@ function getCurrentNotebook() {
 }
 
 function setStatus(message, type = "info") {
-  elements.statusBanner.textContent = message;
-  elements.statusBanner.className = `status-banner ${type}`;
+  // 状态栏已删除，不再显示冗余提示
+  console.log(`[Status: ${type}] ${message}`);
 }
 
 function formatTimestamp(value) {

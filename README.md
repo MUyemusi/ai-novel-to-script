@@ -1,5 +1,10 @@
 # 叙构：AI 小说转剧本工具
-demo演示：http://xhslink.com/o/7WKMYeACGbY 先复制再进入【小红书】，笔记内容马上出现。
+原提交的演示视频链接由于外部平台（小红书）限流问题，部分评审可能无法访问。
+与主办方沟通确认后现已更新为新的视频链接：
+
+https://www.xiaohongshu.com/discovery/item/6a267c67000000001c02748c?source=webshare&xhsshare=pc_web&xsec_token=YBe7P9F7PZXbuwb-EMZoPwLj6OnnwP6TdepRhDFgkTq38=&xsec_source=pc_share
+
+请使用新的链接进行观看，非常抱歉给评审带来不便，感谢您的理解与支持。
 
 `叙构` 是一个将小说章节整理为可编辑剧本结构的前后端分离 Demo。  
 当前版本已经不再只是单页 YAML 生成器，而是包含：
